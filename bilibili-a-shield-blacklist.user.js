@@ -1438,10 +1438,10 @@
                     </button>
                     <div id="bl-data-submenu" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e3e5e7; border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100000; display: none;">
                         <button id="bl-import-uids" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
-                            � 导入 UID
+                            📥 导入 UID
                         </button>
                         <button id="bl-export-uids" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
-                            � 导出 UID
+                            📤 导出 UID
                         </button>
                         <button id="bl-export-my-blacklist" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
                             🧾 导出我的B站黑名单
