@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站A盾黑名单拉黑助手（简易版）
 // @namespace    http://tampermonkey.net/
-// @version      1.1-standalone
+// @version      1.2-standalone
 // @description  自动将A盾黑名单中的用户添加到B站黑名单，仅使用脚本内置 UID 列表，不访问任何外部公示站
 // @author       Shiroha23
 // @match        https://space.bilibili.com/*
@@ -306,6 +306,207 @@
         showFloatingTip(title, message);
     }
 
+    function exportBlacklistUids() {
+        if (!BLACKLIST_UIDS.length) {
+            alert('当前没有可导出的 UID');
+            return;
+        }
+        const text = BLACKLIST_UIDS.join('\n');
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'bilibili-a-shield-blacklist-uids-' + new Date().toISOString().slice(0, 10) + '.txt';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showNotification('导出成功', `已下载 ${BLACKLIST_UIDS.length} 条 UID（每行一个）`);
+    }
+
+    function parseUidsFromImportText(text) {
+        const seen = new Set();
+        const out = [];
+        function addUid(uid) {
+            if (typeof uid !== 'number' || !Number.isFinite(uid) || uid <= 0) {
+                return;
+            }
+            if (!seen.has(uid)) {
+                seen.add(uid);
+                out.push(uid);
+            }
+        }
+        const linkRe = /space\.bilibili\.com\/(\d+)/gi;
+        let m;
+        while ((m = linkRe.exec(text)) !== null) {
+            addUid(parseInt(m[1], 10));
+        }
+        const parts = text.split(/[\n,;，；\r\t]+/);
+        for (let i = 0; i < parts.length; i++) {
+            let part = parts[i].trim();
+            if (!part) {
+                continue;
+            }
+            part = part.replace(/^UID[:\s：]*/i, '').trim();
+            const digits = part.match(/^(\d{5,})$/);
+            if (digits) {
+                addUid(parseInt(digits[1], 10));
+            }
+        }
+        return out;
+    }
+
+    function applyImportedUids(uids) {
+        BLACKLIST_UIDS = uids;
+        DATA_SOURCE = '用户导入';
+        clearProgress();
+    }
+
+    function showImportUidDialog() {
+        const existing = document.getElementById('bilibili-blacklist-import-overlay');
+        if (existing) {
+            existing.remove();
+        }
+
+        const overlay = document.createElement('div');
+        overlay.id = 'bilibili-blacklist-import-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            inset: 0;
+            z-index: 100000;
+            background: rgba(0,0,0,0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            box-sizing: border-box;
+        `;
+
+        const box = document.createElement('div');
+        box.style.cssText = `
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 420px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        `;
+
+        const titleRow = document.createElement('div');
+        titleRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 16px 16px 8px; border-bottom: 1px solid #e3e5e7;';
+        const h = document.createElement('h3');
+        h.style.cssText = 'margin: 0; font-size: 16px; color: #18191c;';
+        h.textContent = '📥 导入 UID';
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.textContent = '×';
+        closeBtn.style.cssText = 'background: none; border: none; cursor: pointer; font-size: 20px; color: #9499a0; line-height: 1;';
+        closeBtn.addEventListener('click', () => overlay.remove());
+        titleRow.appendChild(h);
+        titleRow.appendChild(closeBtn);
+
+        const hint = document.createElement('div');
+        hint.style.cssText = 'padding: 8px 16px; font-size: 12px; color: #61666d; line-height: 1.5;';
+        hint.textContent = '每行一个 UID，或用逗号、分号分隔；也可粘贴个人空间链接。导入后将替换当前列表并清零拉黑进度。';
+
+        const ta = document.createElement('textarea');
+        ta.placeholder = '例如：\n123456789\nhttps://space.bilibili.com/987654321';
+        ta.style.cssText = `
+            margin: 0 16px;
+            width: calc(100% - 32px);
+            min-height: 160px;
+            max-height: 40vh;
+            padding: 10px;
+            border: 1px solid #e3e5e7;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: ui-monospace, monospace;
+            resize: vertical;
+            box-sizing: border-box;
+        `;
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.txt,text/plain';
+        fileInput.style.display = 'none';
+
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px;';
+
+        const pickFileBtn = document.createElement('button');
+        pickFileBtn.type = 'button';
+        pickFileBtn.textContent = '📄 选择 txt 文件';
+        pickFileBtn.style.cssText = 'padding: 8px 12px; background: #f6f7f8; color: #18191c; border: 1px solid #e3e5e7; border-radius: 6px; cursor: pointer; font-size: 13px;';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = '取消';
+        cancelBtn.style.cssText = 'margin-left: auto; padding: 8px 16px; background: #f6f7f8; color: #61666d; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;';
+
+        const okBtn = document.createElement('button');
+        okBtn.type = 'button';
+        okBtn.textContent = '导入';
+        okBtn.style.cssText = 'padding: 8px 16px; background: #00a1d6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;';
+
+        pickFileBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', function() {
+            const file = this.files && this.files[0];
+            if (!file) {
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function() {
+                ta.value = String(reader.result || '');
+            };
+            reader.readAsText(file, 'UTF-8');
+            this.value = '';
+        });
+
+        cancelBtn.addEventListener('click', () => overlay.remove());
+
+        okBtn.addEventListener('click', () => {
+            const uids = parseUidsFromImportText(ta.value);
+            if (uids.length === 0) {
+                alert('未能解析出任何 UID，请检查格式。');
+                return;
+            }
+            if (!confirm(`将使用 ${uids.length} 条 UID 替换当前列表，并清零拉黑进度。确定？`)) {
+                return;
+            }
+            applyImportedUids(uids);
+            overlay.remove();
+            const panel = document.getElementById('bilibili-blacklist-panel');
+            if (panel) {
+                panel.remove();
+            }
+            createControlPanel();
+            showNotification('导入成功', `已载入 ${uids.length} 条 UID`);
+        });
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+            }
+        });
+
+        btnRow.appendChild(pickFileBtn);
+        btnRow.appendChild(cancelBtn);
+        btnRow.appendChild(okBtn);
+
+        box.appendChild(titleRow);
+        box.appendChild(hint);
+        box.appendChild(ta);
+        box.appendChild(fileInput);
+        box.appendChild(btnRow);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        ta.focus();
+    }
+
     function showFloatingTip(title, message) {
         const existing = document.getElementById('bilibili-blacklist-tip');
         if (existing) existing.remove();
@@ -393,6 +594,12 @@
                 <button id="bl-refresh-data" style="padding: 10px; background: #52c41a; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
                     🔄 重新载入内置列表
                 </button>
+                <button id="bl-export-uids" style="padding: 10px; background: #13c2c2; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
+                    📤 导出 UID
+                </button>
+                <button id="bl-import-uids" style="padding: 10px; background: #fa8c16; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
+                    📥 导入 UID
+                </button>
                 <button id="bl-reset-progress" style="padding: 10px; background: #f6f7f8; color: #61666d; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: background 0.2s;">
                     🔄 重置进度
                 </button>
@@ -423,6 +630,14 @@
             panel.remove();
             createControlPanel();
             showNotification('已重新载入', `当前内置列表共 ${BLACKLIST_UIDS.length} 条`);
+        });
+
+        document.getElementById('bl-export-uids').addEventListener('click', () => {
+            exportBlacklistUids();
+        });
+
+        document.getElementById('bl-import-uids').addEventListener('click', () => {
+            showImportUidDialog();
         });
 
         document.getElementById('bl-reset-progress').addEventListener('click', () => {
@@ -509,6 +724,14 @@
                     clearProgress();
                     alert('进度已重置！');
                 }
+            });
+
+            GM_registerMenuCommand('📤 导出 UID 列表', () => {
+                exportBlacklistUids();
+            });
+
+            GM_registerMenuCommand('📥 导入 UID 列表', () => {
+                showImportUidDialog();
             });
         }
     }
