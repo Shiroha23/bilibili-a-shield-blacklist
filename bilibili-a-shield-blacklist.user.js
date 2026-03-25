@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站A盾黑名单拉黑助手
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  自动将A盾黑名单中的用户添加到B站黑名单，支持从 listing.ssrv2.ltd 动态获取数据
 // @author       Shiroha23
 // @match        https://space.bilibili.com/*
@@ -34,6 +34,9 @@
         // 公示数据 JSON API（站点已改为前端分页加载，需直接请求此接口）
         BLACKLIST_API_URL: 'https://listing.ssrv2.ltd/api/public-blacklist',
         API_PAGE_SIZE: 50,
+        // B站账号黑名单 API（用于导出“我账号当前已拉黑”的 UID）
+        BILI_BLACKS_API_URL: 'https://api.bilibili.com/x/relation/blacks',
+        BILI_BLACKS_PAGE_SIZE: 50,
         // 缓存键名
         CACHE_KEY: 'bilibili_blacklist_cache'
     };
@@ -623,6 +626,96 @@
     }
 
     /**
+     * 读取“我账号当前已拉黑”列表并导出 UID
+     */
+    async function exportMyBilibiliBlacklist() {
+        if (!isLoggedIn()) {
+            alert('请先登录B站账号！');
+            return;
+        }
+
+        try {
+            const records = await fetchAllMyBilibiliBlacks();
+            if (!records.length) {
+                alert('当前账号黑名单为空，未导出文件。');
+                return;
+            }
+
+            const uidLines = records.map(item => String(item.uid));
+            const text = uidLines.join('\n');
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'bilibili-my-blacklist-uids-' + new Date().toISOString().slice(0, 10) + '.txt';
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showNotification('导出成功', `已导出你账号黑名单 ${records.length} 条 UID`);
+        } catch (error) {
+            console.error('❌ 导出 B站账号黑名单失败:', error);
+            alert(`导出失败：${error && error.message ? error.message : '未知错误'}`);
+        }
+    }
+
+    /**
+     * 拉取 B站账号黑名单（分页）
+     */
+    async function fetchAllMyBilibiliBlacks() {
+        const ps = CONFIG.BILI_BLACKS_PAGE_SIZE;
+        const seen = new Set();
+        const out = [];
+        let pn = 1;
+        let keepLoading = true;
+
+        while (keepLoading) {
+            const url = CONFIG.BILI_BLACKS_API_URL + '?' + new URLSearchParams({
+                pn: String(pn),
+                ps: String(ps)
+            }).toString();
+
+            const resp = await fetch(url, {
+                method: 'GET',
+                credentials: 'include',
+                headers: { 'Accept': 'application/json, text/plain, */*' }
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+                throw new Error(`HTTP ${resp.status}`);
+            }
+            if (!data || data.code !== 0) {
+                throw new Error((data && (data.message || data.msg)) || '接口返回异常');
+            }
+
+            const payload = data.data || {};
+            const list = Array.isArray(payload.list) ? payload.list : [];
+            const total = Number.isFinite(payload.total) ? payload.total : null;
+
+            for (let i = 0; i < list.length; i++) {
+                const item = list[i] || {};
+                const uid = parseInt(String(item.mid || item.uid || ''), 10);
+                if (Number.isFinite(uid) && !seen.has(uid)) {
+                    seen.add(uid);
+                    out.push({ uid: uid, raw: item });
+                }
+            }
+
+            if (list.length < ps) {
+                break;
+            }
+            if (total !== null && out.length >= total) {
+                break;
+            }
+            pn += 1;
+            keepLoading = pn <= 200;
+        }
+
+        return out;
+    }
+
+    /**
      * 从用户粘贴或文件内容中解析 UID（支持每行一个、逗号/分号分隔、space.bilibili.com 链接）
      */
     function parseUidsFromImportText(text) {
@@ -864,6 +957,9 @@
                 <button id="bl-import-uids" style="padding: 10px; background: #fa8c16; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
                     📥 导入 UID
                 </button>
+                <button id="bl-export-my-blacklist" style="padding: 10px; background: #2f54eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
+                    🧾 导出我的B站黑名单
+                </button>
                 <button id="bl-reset-progress" style="padding: 10px; background: #f6f7f8; color: #61666d; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: background 0.2s;">
                     🔄 重置进度
                 </button>
@@ -926,6 +1022,10 @@
 
         document.getElementById('bl-import-uids').addEventListener('click', () => {
             showImportUidDialog();
+        });
+
+        document.getElementById('bl-export-my-blacklist').addEventListener('click', async () => {
+            await exportMyBilibiliBlacklist();
         });
 
         document.getElementById('bl-reset-progress').addEventListener('click', () => {
@@ -1123,6 +1223,10 @@
 
                 GM_registerMenuCommand('📥 导入 UID 列表', () => {
                     showImportUidDialog();
+                });
+
+                GM_registerMenuCommand('🧾 导出我的B站黑名单', async () => {
+                    await exportMyBilibiliBlacklist();
                 });
             }
         }
