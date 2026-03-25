@@ -38,7 +38,11 @@
         BILI_BLACKS_API_URL: 'https://api.bilibili.com/x/relation/blacks',
         BILI_BLACKS_PAGE_SIZE: 50,
         // 缓存键名
-        CACHE_KEY: 'bilibili_blacklist_cache'
+        CACHE_KEY: 'bilibili_blacklist_cache',
+        // 是否跳过已拉黑的用户
+        SKIP_ALREADY_BLOCKED: true,
+        // 当前黑名单缓存键名
+        MY_BLACKS_CACHE_KEY: 'bilibili_my_blacks_cache'
     };
 
     // ==================== 黑名单数据 ====================
@@ -158,6 +162,10 @@
     let batchBlockRunning = false;
     /** 批量拉黑暂停状态 */
     let batchBlockPaused = false;
+    /** 我的黑名单UID集合（用于快速检查） */
+    let myBlacklistUids = new Set();
+    /** 已跳过的用户数量 */
+    let skippedCount = 0;
     
     /** 更新状态显示 */
     function updateStatusDisplay() {
@@ -176,6 +184,49 @@
             
             statusEl.textContent = statusText;
             statusEl.style.color = statusColor;
+        }
+    }
+
+    /**
+     * 加载我的黑名单（用于快速检查）
+     */
+    async function loadMyBlacklist() {
+        if (!isLoggedIn()) {
+            console.log('未登录，无法加载我的黑名单');
+            return;
+        }
+        
+        try {
+            console.log('🔄 正在加载我的黑名单...');
+            const records = await fetchAllMyBilibiliBlacks();
+            
+            myBlacklistUids.clear();
+            for (const item of records) {
+                myBlacklistUids.add(item.uid);
+            }
+            
+            console.log(`✅ 我的黑名单加载完成，共 ${myBlacklistUids.size} 个用户`);
+        } catch (error) {
+            console.warn('⚠️ 加载我的黑名单失败:', error);
+        }
+    }
+
+    /**
+     * 检查用户是否已在黑名单中
+     * @param {number} uid - 用户UID
+     * @returns {boolean}
+     */
+    function isUserAlreadyBlocked(uid) {
+        return myBlacklistUids.has(uid);
+    }
+
+    /**
+     * 更新跳过计数显示
+     */
+    function updateSkippedCountDisplay() {
+        const skippedEl = document.getElementById('bl-skipped-count');
+        if (skippedEl) {
+            skippedEl.textContent = String(skippedCount);
         }
     }
 
@@ -497,6 +548,7 @@
         }
 
         batchBlockRunning = true;
+        skippedCount = 0;
         const total = BLACKLIST_UIDS.length;
         let success = 0;
         let failed = 0;
@@ -512,6 +564,11 @@
         updateStatusDisplay();
 
         try {
+            // 如果启用跳过已拉黑用户，先加载我的黑名单
+            if (CONFIG.SKIP_ALREADY_BLOCKED) {
+                await loadMyBlacklist();
+            }
+            
             console.log(`🚀 开始批量拉黑，从第 ${startIndex + 1} 个用户开始，共 ${total} 个用户`);
 
             for (let i = startIndex; i < total; i++) {
@@ -522,12 +579,33 @@
                 }
                 
                 const uid = BLACKLIST_UIDS[i];
+                
+                // 检查是否需要跳过已拉黑的用户
+                if (CONFIG.SKIP_ALREADY_BLOCKED && isUserAlreadyBlocked(uid)) {
+                    console.log(`⏭️ 跳过已拉黑用户: ${uid}`);
+                    skippedCount++;
+                    updateSkippedCountDisplay();
+                    // 保存进度
+                    saveProgress(i + 1);
+                    
+                    // 显示进度通知
+                    if ((i + 1) % CONFIG.BATCH_SIZE === 0 || i === total - 1) {
+                        showNotification(
+                            '批量拉黑进度',
+                            `已处理: ${i + 1}/${total}\n成功: ${success}  失败: ${failed}\n跳过: ${skippedCount}`
+                        );
+                    }
+                    continue;
+                }
+                
                 console.log(`[${i + 1}/${total}] 正在处理用户: ${uid}`);
 
                 const result = await blockUser(uid);
 
                 if (result) {
                     success++;
+                    // 成功拉黑后添加到本地集合，避免重复处理
+                    myBlacklistUids.add(uid);
                 } else {
                     failed++;
                 }
@@ -539,7 +617,7 @@
                 if ((i + 1) % CONFIG.BATCH_SIZE === 0 || i === total - 1) {
                     showNotification(
                         '批量拉黑进度',
-                        `已处理: ${i + 1}/${total}\n成功: ${success}  失败: ${failed}`
+                        `已处理: ${i + 1}/${total}\n成功: ${success}  失败: ${failed}\n跳过: ${skippedCount}`
                     );
                 }
 
@@ -555,14 +633,14 @@
                 }
             }
 
-            console.log(`✅ 批量拉黑完成！成功: ${success}, 失败: ${failed}`);
+            console.log(`✅ 批量拉黑完成！成功: ${success}, 失败: ${failed}, 跳过: ${skippedCount}`);
             showNotification(
                 '批量拉黑完成',
-                `总计: ${total}\n成功: ${success}\n失败: ${failed}`
+                `总计: ${total}\n成功: ${success}\n失败: ${failed}\n跳过: ${skippedCount}`
             );
 
             // 完成后清除进度
-            if (success + failed === total) {
+            if (success + failed + skippedCount === total) {
                 clearProgress();
             }
         } finally {
@@ -988,6 +1066,7 @@
                 <div>数据来源: <strong style="color: #18191c;">${DATA_SOURCE}</strong></div>
                 <div>登录状态: <strong style="color: ${isLoggedIn() ? '#00aeec' : '#f25d8e'};">${isLoggedIn() ? '已登录' : '未登录'}</strong></div>
                 <div>当前状态: <strong id="bl-current-status" style="color: ${batchBlockPaused ? '#faad14' : batchBlockRunning ? '#52c41a' : '#9499a0'};">${batchBlockPaused ? '已暂停' : batchBlockRunning ? '运行中' : '待运行'}</strong></div>
+                <div>已跳过: <strong id="bl-skipped-count" style="color: #13c2c2;">${skippedCount}</strong></div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 <button id="bl-control-batch" style="padding: 10px; background: #00a1d6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
