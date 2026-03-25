@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站A盾黑名单拉黑助手
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  自动将A盾黑名单中的用户添加到B站黑名单，支持从 listing.ssrv2.ltd 动态获取数据
 // @author       Shiroha23
 // @match        https://space.bilibili.com/*
@@ -29,8 +29,11 @@
         BATCH_SIZE: 10,
         // 存储键名
         STORAGE_KEY: 'bilibili_blacklist_progress',
-        // 黑名单数据源URL
+        // 黑名单公示页（浏览器打开）
         BLACKLIST_URL: 'https://listing.ssrv2.ltd/',
+        // 公示数据 JSON API（站点已改为前端分页加载，需直接请求此接口）
+        BLACKLIST_API_URL: 'https://listing.ssrv2.ltd/api/public-blacklist',
+        API_PAGE_SIZE: 50,
         // 缓存键名
         CACHE_KEY: 'bilibili_blacklist_cache'
     };
@@ -162,6 +165,7 @@
                 GM_xmlhttpRequest({
                     method: 'GET',
                     url: url,
+                    headers: { 'Accept': 'application/json, text/html;q=0.9, */*;q=0.8' },
                     timeout: 60000,
                     onload: function(response) {
                         if (response.status >= 200 && response.status < 300) {
@@ -179,7 +183,11 @@
                 });
             });
         }
-        return fetch(url, { mode: 'cors', credentials: 'omit' }).then(function(r) {
+        return fetch(url, {
+            mode: 'cors',
+            credentials: 'omit',
+            headers: { 'Accept': 'application/json, text/html;q=0.9, */*;q=0.8' }
+        }).then(function(r) {
             if (!r.ok) {
                 throw new Error(`HTTP ${r.status}`);
             }
@@ -201,11 +209,9 @@
         };
 
         try {
-            console.log('🔄 正在从 listing.ssrv2.ltd 获取黑名单数据...');
+            console.log('🔄 正在从 listing.ssrv2.ltd API 获取黑名单数据...');
 
-            const html = await fetchText(CONFIG.BLACKLIST_URL);
-
-            const uids = parseUidsFromHtml(html);
+            const uids = await fetchAllUidsFromPublicApi();
 
             if (uids && uids.length > 0) {
                 BLACKLIST_UIDS = uids;
@@ -242,6 +248,49 @@
                 return result;
             }
         }
+    }
+
+    /**
+     * 分页拉取公示站 JSON API，合并为 UID 列表
+     */
+    async function fetchAllUidsFromPublicApi() {
+        const limit = CONFIG.API_PAGE_SIZE;
+        const seen = new Set();
+        const uids = [];
+        let offset = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const apiUrl =
+                CONFIG.BLACKLIST_API_URL +
+                '?' +
+                new URLSearchParams({ offset: String(offset), limit: String(limit) }).toString();
+            const text = await fetchText(apiUrl);
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                throw new Error('API 返回非 JSON');
+            }
+            if (!data.success || !Array.isArray(data.list)) {
+                throw new Error(data.error || '无法解析黑名单 API 响应');
+            }
+            for (let i = 0; i < data.list.length; i++) {
+                const raw = data.list[i] && data.list[i].uid;
+                const uid = raw != null ? parseInt(String(raw), 10) : NaN;
+                if (Number.isFinite(uid) && !seen.has(uid)) {
+                    seen.add(uid);
+                    uids.push(uid);
+                }
+            }
+            if (data.list.length === 0) {
+                break;
+            }
+            offset += data.list.length;
+            hasMore = Boolean(data.hasMore) && data.list.length > 0;
+        }
+
+        return uids;
     }
 
     /**
@@ -746,7 +795,7 @@
 
         panel.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h3 style="margin: 0; font-size: 16px; color: #18191c;">🛡️ 黑名单导入工具</h3>
+                <h3 style="margin: 0; font-size: 16px; color: #18191c;">🛡️ B站A盾黑名单拉黑助手</h3>
                 <button id="bl-listing-close" style="background: none; border: none; cursor: pointer; font-size: 18px; color: #9499a0;">×</button>
             </div>
             <div style="margin-bottom: 15px; padding: 10px; background: #f6f7f8; border-radius: 8px; font-size: 13px; color: #61666d;">
