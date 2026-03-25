@@ -1411,7 +1411,6 @@
                 <div>数据来源: <strong style="color: #18191c;">${DATA_SOURCE}</strong></div>
                 <div>登录状态: <strong style="color: ${isLoggedIn() ? '#00aeec' : '#f25d8e'};">${isLoggedIn() ? '已登录' : '未登录'}</strong></div>
                 <div>当前状态: <strong id="bl-current-status" style="color: ${batchBlockPaused ? '#faad14' : batchBlockRunning ? '#52c41a' : '#9499a0'};">${batchBlockPaused ? '已暂停' : batchBlockRunning ? '运行中' : '待运行'}</strong></div>
-                <div>已跳过: <strong id="bl-skipped-count" style="color: #13c2c2;">${skippedCount}</strong></div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 <button id="bl-control-batch" style="padding: 10px; background: #00a1d6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
@@ -1438,11 +1437,11 @@
                         📤 导入/导出 ▼
                     </button>
                     <div id="bl-data-submenu" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e3e5e7; border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100000; display: none;">
-                        <button id="bl-export-uids" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
-                            📤 导出 UID
-                        </button>
                         <button id="bl-import-uids" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
-                            📥 导入 UID
+                            � 导入 UID
+                        </button>
+                        <button id="bl-export-uids" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
+                            � 导出 UID
                         </button>
                         <button id="bl-export-my-blacklist" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
                             🧾 导出我的B站黑名单
@@ -1763,15 +1762,17 @@
             console.log('📍 检测到 listing.ssrv2.ltd 页面，启用导入功能');
             createListingPanel();
         } else {
-            // 优先检查是否有从 listing.ssrv2.ltd 导入的数据
+            // 优先使用本地缓存数据，不从远程自动获取
             const cached = getBlacklistCache();
             if (cached && cached.length > 0) {
                 BLACKLIST_UIDS = cached;
-                DATA_SOURCE = '跨域名缓存';
-                console.log(`📋 使用跨域名缓存数据: ${cached.length} 条`);
+                DATA_SOURCE = '本地缓存';
+                console.log(`📋 使用本地缓存数据: ${cached.length} 条`);
             } else {
-                await fetchBlacklistFromRemote();
-                console.log(`📋 黑名单用户总数: ${BLACKLIST_UIDS.length}`);
+                // 使用内置备用数据
+                BLACKLIST_UIDS = FALLBACK_UIDS;
+                DATA_SOURCE = '备用数据';
+                console.log(`⚠️ 使用内置备用数据: ${FALLBACK_UIDS.length} 条`);
             }
 
             // 创建悬浮按钮
