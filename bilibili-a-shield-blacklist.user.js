@@ -166,6 +166,10 @@
     let myBlacklistUids = new Set();
     /** 已跳过的用户数量 */
     let skippedCount = 0;
+    /** 详细日志记录 */
+    let blockDetailsLog = [];
+    /** 最大日志条数 */
+    const MAX_LOG_ENTRIES = 1000;
     
     /** 更新状态显示 */
     function updateStatusDisplay() {
@@ -228,6 +232,56 @@
         if (skippedEl) {
             skippedEl.textContent = String(skippedCount);
         }
+    }
+
+    /**
+     * 添加详细日志记录
+     * @param {Object} entry - 日志条目
+     */
+    function addBlockLogEntry(entry) {
+        const logEntry = {
+            timestamp: new Date().toLocaleString(),
+            uid: entry.uid,
+            status: entry.status, // 'success', 'failed', 'skipped', 'error'
+            message: entry.message || '',
+            index: entry.index,
+            total: entry.total
+        };
+        
+        blockDetailsLog.push(logEntry);
+        
+        // 限制日志数量
+        if (blockDetailsLog.length > MAX_LOG_ENTRIES) {
+            blockDetailsLog = blockDetailsLog.slice(-MAX_LOG_ENTRIES);
+        }
+    }
+
+    /**
+     * 清空详细日志
+     */
+    function clearBlockLog() {
+        blockDetailsLog = [];
+    }
+
+    /**
+     * 获取日志统计信息
+     */
+    function getBlockLogStats() {
+        const stats = {
+            success: 0,
+            failed: 0,
+            skipped: 0,
+            error: 0,
+            total: blockDetailsLog.length
+        };
+        
+        for (const entry of blockDetailsLog) {
+            if (stats[entry.status] !== undefined) {
+                stats[entry.status]++;
+            }
+        }
+        
+        return stats;
     }
 
     // ==================== 工具函数 ====================
@@ -570,6 +624,9 @@
             }
             
             console.log(`🚀 开始批量拉黑，从第 ${startIndex + 1} 个用户开始，共 ${total} 个用户`);
+            
+            // 清空之前的日志记录
+            clearBlockLog();
 
             for (let i = startIndex; i < total; i++) {
                 // 检查是否暂停
@@ -585,6 +642,16 @@
                     console.log(`⏭️ 跳过已拉黑用户: ${uid}`);
                     skippedCount++;
                     updateSkippedCountDisplay();
+                    
+                    // 记录跳过日志
+                    addBlockLogEntry({
+                        uid: uid,
+                        status: 'skipped',
+                        message: '用户已在黑名单中',
+                        index: i + 1,
+                        total: total
+                    });
+                    
                     // 保存进度
                     saveProgress(i + 1);
                     
@@ -600,14 +667,39 @@
                 
                 console.log(`[${i + 1}/${total}] 正在处理用户: ${uid}`);
 
-                const result = await blockUser(uid);
+                let result;
+                let errorMessage = '';
+                try {
+                    result = await blockUser(uid);
+                } catch (error) {
+                    result = false;
+                    errorMessage = error.message || '未知错误';
+                }
 
                 if (result) {
                     success++;
                     // 成功拉黑后添加到本地集合，避免重复处理
                     myBlacklistUids.add(uid);
+                    
+                    // 记录成功日志
+                    addBlockLogEntry({
+                        uid: uid,
+                        status: 'success',
+                        message: '拉黑成功',
+                        index: i + 1,
+                        total: total
+                    });
                 } else {
                     failed++;
+                    
+                    // 记录失败日志
+                    addBlockLogEntry({
+                        uid: uid,
+                        status: errorMessage ? 'error' : 'failed',
+                        message: errorMessage || '拉黑失败',
+                        index: i + 1,
+                        total: total
+                    });
                 }
 
                 // 保存进度
@@ -886,6 +978,244 @@
     }
 
     /**
+     * 显示详细日志查看面板
+     */
+    function showDetailsPanel() {
+        const existing = document.getElementById('bilibili-blacklist-details-overlay');
+        if (existing) {
+            existing.remove();
+        }
+
+        const overlay = document.createElement('div');
+        overlay.id = 'bilibili-blacklist-details-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            inset: 0;
+            z-index: 100001;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+        `;
+
+        const box = document.createElement('div');
+        box.style.cssText = `
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 700px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        `;
+
+        // 获取统计数据
+        const stats = getBlockLogStats();
+
+        // 标题栏
+        const titleRow = document.createElement('div');
+        titleRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #e3e5e7; background: #f6f7f8; border-radius: 12px 12px 0 0;';
+        
+        const titleLeft = document.createElement('div');
+        titleLeft.innerHTML = `
+            <h3 style="margin: 0; font-size: 16px; color: #18191c;">📋 拉黑详细记录</h3>
+            <div style="font-size: 12px; color: #61666d; margin-top: 4px;">
+                总计: ${stats.total} | 
+                <span style="color: #52c41a;">成功: ${stats.success}</span> | 
+                <span style="color: #f5222d;">失败: ${stats.failed}</span> | 
+                <span style="color: #13c2c2;">跳过: ${stats.skipped}</span> | 
+                <span style="color: #faad14;">错误: ${stats.error}</span>
+            </div>
+        `;
+
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.textContent = '×';
+        closeBtn.style.cssText = 'background: none; border: none; cursor: pointer; font-size: 24px; color: #9499a0; line-height: 1; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;';
+        closeBtn.addEventListener('click', () => overlay.remove());
+        
+        titleRow.appendChild(titleLeft);
+        titleRow.appendChild(closeBtn);
+
+        // 筛选按钮区域
+        const filterRow = document.createElement('div');
+        filterRow.style.cssText = 'display: flex; gap: 8px; padding: 12px 20px; border-bottom: 1px solid #e3e5e7; background: #fafbfc;';
+        
+        const filters = [
+            { key: 'all', label: '全部', color: '#18191c' },
+            { key: 'success', label: '成功', color: '#52c41a' },
+            { key: 'failed', label: '失败', color: '#f5222d' },
+            { key: 'skipped', label: '跳过', color: '#13c2c2' },
+            { key: 'error', label: '错误', color: '#faad14' }
+        ];
+        
+        let currentFilter = 'all';
+        const filterButtons = {};
+        
+        filters.forEach(f => {
+            const btn = document.createElement('button');
+            btn.textContent = f.label;
+            btn.style.cssText = `
+                padding: 6px 14px;
+                border: 1px solid ${f.key === 'all' ? '#00a1d6' : f.color};
+                background: ${f.key === 'all' ? '#00a1d6' : '#fff'};
+                color: ${f.key === 'all' ? '#fff' : f.color};
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 13px;
+                transition: all 0.2s;
+            `;
+            btn.addEventListener('click', () => {
+                currentFilter = f.key;
+                // 更新按钮样式
+                Object.keys(filterButtons).forEach(key => {
+                    const b = filterButtons[key];
+                    const filterInfo = filters.find(x => x.key === key);
+                    if (key === currentFilter) {
+                        b.style.background = filterInfo.color;
+                        b.style.color = '#fff';
+                    } else {
+                        b.style.background = '#fff';
+                        b.style.color = filterInfo.color;
+                    }
+                });
+                renderLogList();
+            });
+            filterButtons[f.key] = btn;
+            filterRow.appendChild(btn);
+        });
+
+        // 清空日志按钮
+        const clearBtn = document.createElement('button');
+        clearBtn.textContent = '🗑️ 清空记录';
+        clearBtn.style.cssText = 'margin-left: auto; padding: 6px 14px; border: 1px solid #ff4d4f; background: #fff; color: #ff4d4f; border-radius: 4px; cursor: pointer; font-size: 13px;';
+        clearBtn.addEventListener('click', () => {
+            if (confirm('确定要清空所有记录吗？')) {
+                clearBlockLog();
+                renderLogList();
+                // 更新标题统计
+                const newStats = getBlockLogStats();
+                titleLeft.innerHTML = `
+                    <h3 style="margin: 0; font-size: 16px; color: #18191c;">📋 拉黑详细记录</h3>
+                    <div style="font-size: 12px; color: #61666d; margin-top: 4px;">
+                        总计: ${newStats.total} | 
+                        <span style="color: #52c41a;">成功: ${newStats.success}</span> | 
+                        <span style="color: #f5222d;">失败: ${newStats.failed}</span> | 
+                        <span style="color: #13c2c2;">跳过: ${newStats.skipped}</span> | 
+                        <span style="color: #faad14;">错误: ${newStats.error}</span>
+                    </div>
+                `;
+            }
+        });
+        filterRow.appendChild(clearBtn);
+
+        // 日志列表区域
+        const listContainer = document.createElement('div');
+        listContainer.style.cssText = 'flex: 1; overflow-y: auto; padding: 0; max-height: 50vh;';
+
+        function renderLogList() {
+            listContainer.innerHTML = '';
+            
+            const filteredLogs = currentFilter === 'all' 
+                ? [...blockDetailsLog].reverse()
+                : blockDetailsLog.filter(entry => entry.status === currentFilter).reverse();
+            
+            if (filteredLogs.length === 0) {
+                const emptyMsg = document.createElement('div');
+                emptyMsg.style.cssText = 'text-align: center; padding: 40px; color: #9499a0; font-size: 14px;';
+                emptyMsg.textContent = '暂无记录';
+                listContainer.appendChild(emptyMsg);
+                return;
+            }
+
+            const table = document.createElement('table');
+            table.style.cssText = 'width: 100%; border-collapse: collapse; font-size: 13px;';
+            
+            // 表头
+            const thead = document.createElement('thead');
+            thead.style.cssText = 'position: sticky; top: 0; background: #fff; z-index: 1;';
+            thead.innerHTML = `
+                <tr style="border-bottom: 1px solid #e3e5e7;">
+                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #18191c; width: 80px;">序号</th>
+                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #18191c; width: 140px;">时间</th>
+                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #18191c; width: 120px;">UID</th>
+                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #18191c; width: 80px;">状态</th>
+                    <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #18191c;">详情</th>
+                </tr>
+            `;
+            table.appendChild(thead);
+            
+            // 表体
+            const tbody = document.createElement('tbody');
+            filteredLogs.forEach((entry, idx) => {
+                const row = document.createElement('tr');
+                row.style.cssText = 'border-bottom: 1px solid #f0f0f0; transition: background 0.2s;';
+                row.addEventListener('mouseenter', () => row.style.background = '#f6f7f8');
+                row.addEventListener('mouseleave', () => row.style.background = 'transparent');
+                
+                const statusColors = {
+                    success: '#52c41a',
+                    failed: '#f5222d',
+                    skipped: '#13c2c2',
+                    error: '#faad14'
+                };
+                
+                const statusLabels = {
+                    success: '成功',
+                    failed: '失败',
+                    skipped: '跳过',
+                    error: '错误'
+                };
+                
+                row.innerHTML = `
+                    <td style="padding: 10px 16px; color: #61666d;">${entry.index}/${entry.total}</td>
+                    <td style="padding: 10px 16px; color: #61666d; font-size: 12px;">${entry.timestamp}</td>
+                    <td style="padding: 10px 16px; color: #18191c; font-family: monospace;">${entry.uid}</td>
+                    <td style="padding: 10px 16px;">
+                        <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: ${statusColors[entry.status]}20; color: ${statusColors[entry.status]}; font-weight: 500;">
+                            ${statusLabels[entry.status]}
+                        </span>
+                    </td>
+                    <td style="padding: 10px 16px; color: #61666d; font-size: 12px;">${entry.message || '-'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+            listContainer.appendChild(table);
+        }
+
+        renderLogList();
+
+        // 底部按钮
+        const bottomRow = document.createElement('div');
+        bottomRow.style.cssText = 'display: flex; justify-content: flex-end; padding: 16px 20px; border-top: 1px solid #e3e5e7; background: #f6f7f8; border-radius: 0 0 12px 12px;';
+        
+        const closeBottomBtn = document.createElement('button');
+        closeBottomBtn.textContent = '关闭';
+        closeBottomBtn.style.cssText = 'padding: 8px 24px; background: #00a1d6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;';
+        closeBottomBtn.addEventListener('click', () => overlay.remove());
+        bottomRow.appendChild(closeBottomBtn);
+
+        box.appendChild(titleRow);
+        box.appendChild(filterRow);
+        box.appendChild(listContainer);
+        box.appendChild(bottomRow);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        // 点击遮罩关闭
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+            }
+        });
+    }
+
+    /**
      * 显示导入 UID 对话框（文本框 + 可选 txt 文件）
      */
     function showImportUidDialog() {
@@ -1107,6 +1437,9 @@
                         </button>
                     </div>
                 </div>
+                <button id="bl-view-details" style="padding: 10px; background: #1890ff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
+                    📋 查看详细记录
+                </button>
                 <button id="bl-reset-progress" style="padding: 10px; background: #f6f7f8; color: #61666d; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: background 0.2s;">
                     🔄 重置进度
                 </button>
@@ -1277,6 +1610,11 @@
                 clearProgress();
                 location.reload();
             }
+        });
+
+        // 查看详细记录按钮
+        document.getElementById('bl-view-details').addEventListener('click', () => {
+            showDetailsPanel();
         });
     }
 
