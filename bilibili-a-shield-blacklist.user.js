@@ -1433,9 +1433,6 @@
                         </button>
                     </div>
                 </div>
-                <button id="bl-go-to-listing" style="padding: 10px; background: #722ed1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
-                    🌐 前往黑名单公示页
-                </button>
                 <div style="position: relative;">
                     <button id="bl-data-menu" style="padding: 10px; background: #13c2c2; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; width: 100%; text-align: center;">
                         📤 导入/导出 ▼
@@ -1585,10 +1582,6 @@
             
             const menu = document.getElementById('bl-refresh-menu');
             menu.style.display = 'none';
-        });
-
-        document.getElementById('bl-go-to-listing').addEventListener('click', () => {
-            window.open(CONFIG.BLACKLIST_URL, '_blank');
         });
 
         // 导入/导出菜单点击事件 - 显示/隐藏子菜单
