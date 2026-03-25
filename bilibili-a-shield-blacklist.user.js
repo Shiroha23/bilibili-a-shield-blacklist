@@ -497,13 +497,21 @@
     /**
      * 拉黑单个用户
      * @param {number} uid - 用户UID
-     * @returns {Promise<boolean>}
+     * @returns {Promise<Object>} 包含成功状态和详细信息的对象
      */
     async function blockUser(uid) {
+        const result = {
+            success: false,
+            message: '',
+            code: null,
+            data: null
+        };
+
         const csrf = getCsrfToken();
         if (!csrf) {
-            console.error('无法获取CSRF Token');
-            return false;
+            result.message = '无法获取CSRF Token';
+            console.error('❌ ' + result.message);
+            return result;
         }
 
         try {
@@ -524,24 +532,30 @@
             });
 
             const data = await response.json();
+            result.code = data.code;
+            result.data = data;
 
             if (data.code === 0) {
+                result.success = true;
+                result.message = '拉黑成功';
                 console.log(`✅ 成功拉黑用户: ${uid}`);
-                return true;
             } else if (data.code === -101) {
-                console.error('❌ 未登录或登录已过期');
-                return false;
+                result.message = '未登录或登录已过期';
+                console.error('❌ ' + result.message);
             } else if (data.code === -102) {
+                result.success = true;
+                result.message = '用户已经在黑名单中';
                 console.log(`⚠️ 用户 ${uid} 已经在黑名单中`);
-                return true;
             } else {
-                console.error(`❌ 拉黑用户 ${uid} 失败:`, data.message || data.msg);
-                return false;
+                result.message = data.message || data.msg || `错误代码: ${data.code}`;
+                console.error(`❌ 拉黑用户 ${uid} 失败:`, result.message);
             }
         } catch (error) {
+            result.message = error.message || '网络错误';
             console.error(`❌ 拉黑用户 ${uid} 时出错:`, error);
-            return false;
         }
+
+        return result;
     }
 
     /**
@@ -667,16 +681,17 @@
                 
                 console.log(`[${i + 1}/${total}] 正在处理用户: ${uid}`);
 
-                let result;
-                let errorMessage = '';
+                let blockResult;
                 try {
-                    result = await blockUser(uid);
+                    blockResult = await blockUser(uid);
                 } catch (error) {
-                    result = false;
-                    errorMessage = error.message || '未知错误';
+                    blockResult = {
+                        success: false,
+                        message: error.message || '未知错误'
+                    };
                 }
 
-                if (result) {
+                if (blockResult.success) {
                     success++;
                     // 成功拉黑后添加到本地集合，避免重复处理
                     myBlacklistUids.add(uid);
@@ -685,18 +700,18 @@
                     addBlockLogEntry({
                         uid: uid,
                         status: 'success',
-                        message: '拉黑成功',
+                        message: blockResult.message,
                         index: i + 1,
                         total: total
                     });
                 } else {
                     failed++;
                     
-                    // 记录失败日志
+                    // 记录失败/错误日志
                     addBlockLogEntry({
                         uid: uid,
-                        status: errorMessage ? 'error' : 'failed',
-                        message: errorMessage || '拉黑失败',
+                        status: 'failed',
+                        message: blockResult.message,
                         index: i + 1,
                         total: total
                     });
