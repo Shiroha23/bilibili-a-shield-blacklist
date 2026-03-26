@@ -755,9 +755,9 @@
                 `总计: ${total}\n成功: ${success}\n失败: ${failed}\n跳过: ${skippedCount}`
             );
 
-            // 完成后清除进度
+            // 完成后将进度设置为总数，显示为满的
             if (success + failed + skippedCount === total) {
-                clearProgress();
+                saveProgress(total);
             }
         } finally {
             batchBlockRunning = false;
@@ -780,8 +780,8 @@
         if (typeof GM_notification !== 'undefined') {
             GM_notification({
                 title: title,
-                text: message,
-                timeout: 5000
+                text: message
+                // 不设置 timeout，通知将持续显示直到用户手动关闭
             });
         }
 
@@ -1557,6 +1557,7 @@
                     batchBlockFinished = false;
                     lastRefreshTime = Date.now();
                     saveBlacklistCache(uids);
+                    clearProgress();
                     console.log(`✅ 成功获取 ${uids.length} 条黑名单数据`);
                     
                     panel.remove();
@@ -1584,6 +1585,7 @@
                 BLACKLIST_UIDS = cached;
                 DATA_SOURCE = '本地缓存';
                 batchBlockFinished = false;
+                clearProgress();
                 console.log(`✅ 使用本地缓存数据: ${cached.length} 条`);
                 
                 panel.remove();
@@ -1602,6 +1604,7 @@
             BLACKLIST_UIDS = FALLBACK_UIDS;
             DATA_SOURCE = '备用数据';
             batchBlockFinished = false;
+            clearProgress();
             console.log(`⚠️ 使用备用数据: ${FALLBACK_UIDS.length} 条`);
             
             panel.remove();

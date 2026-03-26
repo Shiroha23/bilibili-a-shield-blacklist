@@ -147,6 +147,8 @@
     function loadEmbeddedBlacklist() {
         BLACKLIST_UIDS = FALLBACK_UIDS.slice();
         DATA_SOURCE = '内置列表';
+        batchBlockFinished = false;
+        clearProgress();
     }
 
     function updateStatusDisplay() {
@@ -517,8 +519,9 @@
                 `总计: ${total}\n成功: ${success}\n失败: ${failed}\n跳过: ${skipped}`
             );
 
+            // 完成后将进度设置为总数，显示为满的
             if (success + failed + skipped === total) {
-                clearProgress();
+                saveProgress(total);
             }
         } finally {
             batchBlockRunning = false;
@@ -563,8 +566,8 @@
         if (typeof GM_notification !== 'undefined') {
             GM_notification({
                 title: title,
-                text: message,
-                timeout: 5000
+                text: message
+                // 不设置 timeout，通知将持续显示直到用户手动关闭
             });
         }
 
