@@ -750,9 +750,11 @@
 
             console.log(`✅ 批量拉黑完成！成功: ${success}, 失败: ${failed}, 跳过: ${skippedCount}`);
             batchBlockFinished = true;
+            // 批量拉黑完成时显示系统通知
             showNotification(
                 '批量拉黑完成',
-                `总计: ${total}\n成功: ${success}\n失败: ${failed}\n跳过: ${skippedCount}`
+                `总计: ${total}\n成功: ${success}\n失败: ${failed}\n跳过: ${skippedCount}`,
+                true
             );
 
             // 完成后将进度设置为总数，显示为满的
@@ -775,9 +777,13 @@
 
     /**
      * 显示通知
+     * @param {string} title - 通知标题
+     * @param {string} message - 通知内容
+     * @param {boolean} showSystem - 是否显示系统通知（仅批量拉黑完成时显示）
      */
-    function showNotification(title, message) {
-        if (typeof GM_notification !== 'undefined') {
+    function showNotification(title, message, showSystem = false) {
+        // 只有批量拉黑完成时才显示系统通知
+        if (showSystem && typeof GM_notification !== 'undefined') {
             GM_notification({
                 title: title,
                 text: message
@@ -785,7 +791,7 @@
             });
         }
 
-        // 同时在页面显示浮动提示
+        // 始终在页面显示浮动提示
         showFloatingTip(title, message);
     }
 
@@ -801,7 +807,7 @@
         tip.style.cssText = `
             position: fixed;
             top: 100px;
-            right: 20px;
+            right: 320px;
             background: linear-gradient(135deg, #00a1d6, #00b5e5);
             color: white;
             padding: 15px 20px;
