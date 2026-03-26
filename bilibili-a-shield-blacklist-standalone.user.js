@@ -142,7 +142,6 @@
     let batchBlockPaused = false;
     let batchBlockFinished = false;
     let myBlacklistUids = new Set();
-    let skippedCount = 0;
     let blockDetailsLog = [];
     const MAX_LOG_ENTRIES = 1000;
 
@@ -198,12 +197,7 @@
         return myBlacklistUids.has(uid);
     }
 
-    function updateSkippedCountDisplay() {
-        const skippedEl = document.getElementById('bl-skipped-count');
-        if (skippedEl) {
-            skippedEl.textContent = String(skippedCount);
-        }
-    }
+
 
     function addBlockLogEntry(entry) {
         const logEntry = {
@@ -410,10 +404,10 @@
 
         batchBlockRunning = true;
         batchBlockFinished = false;
-        skippedCount = 0;
         const total = BLACKLIST_UIDS.length;
         let success = 0;
         let failed = 0;
+        let skipped = 0;
         
         const btn = document.getElementById('bl-control-batch');
         if (btn) {
@@ -442,8 +436,7 @@
                 
                 if (CONFIG.SKIP_ALREADY_BLOCKED && isUserAlreadyBlocked(uid)) {
                     console.log(`⏭️ 跳过已拉黑用户: ${uid}`);
-                    skippedCount++;
-                    updateSkippedCountDisplay();
+                    skipped++;
                     
                     addBlockLogEntry({
                         uid: uid,
@@ -458,7 +451,7 @@
                     if ((i + 1) % CONFIG.BATCH_SIZE === 0 || i === total - 1) {
                         showNotification(
                             '批量拉黑进度',
-                            `已处理: ${i + 1}/${total}\n成功: ${success}  失败: ${failed}\n跳过: ${skippedCount}`
+                            `已处理: ${i + 1}/${total}\n成功: ${success}  失败: ${failed}\n跳过: ${skipped}`
                         );
                     }
                     continue;
@@ -504,7 +497,7 @@
                 if ((i + 1) % CONFIG.BATCH_SIZE === 0 || i === total - 1) {
                     showNotification(
                         '批量拉黑进度',
-                        `已处理: ${i + 1}/${total}\n成功: ${success}  失败: ${failed}\n跳过: ${skippedCount}`
+                        `已处理: ${i + 1}/${total}\n成功: ${success}  失败: ${failed}\n跳过: ${skipped}`
                     );
                 }
 
@@ -518,14 +511,14 @@
                 }
             }
 
-            console.log(`✅ 批量拉黑完成！成功: ${success}, 失败: ${failed}, 跳过: ${skippedCount}`);
+            console.log(`✅ 批量拉黑完成！成功: ${success}, 失败: ${failed}, 跳过: ${skipped}`);
             batchBlockFinished = true;
             showNotification(
                 '批量拉黑完成',
-                `总计: ${total}\n成功: ${success}\n失败: ${failed}\n跳过: ${skippedCount}`
+                `总计: ${total}\n成功: ${success}\n失败: ${failed}\n跳过: ${skipped}`
             );
 
-            if (success + failed + skippedCount === total) {
+            if (success + failed + skipped === total) {
                 clearProgress();
             }
         } finally {
@@ -1068,7 +1061,6 @@
                 <div>数据来源: <strong style="color: #18191c;">${DATA_SOURCE}</strong></div>
                 <div>登录状态: <strong style="color: ${isLoggedIn() ? '#00aeec' : '#f25d8e'};">${isLoggedIn() ? '已登录' : '未登录'}</strong></div>
                 <div>当前状态: <strong id="bl-current-status" style="color: #9499a0;">待运行</strong></div>
-                <div>已跳过: <strong id="bl-skipped-count" style="color: #13c2c2;">0</strong> 个用户</div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 <button id="bl-control-batch" style="padding: 10px; background: #00a1d6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
@@ -1098,7 +1090,6 @@
         document.body.appendChild(panel);
 
         updateStatusDisplay();
-        updateSkippedCountDisplay();
 
         document.getElementById('bl-close-panel').addEventListener('click', () => {
             panel.remove();
