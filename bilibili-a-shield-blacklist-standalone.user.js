@@ -393,6 +393,20 @@
         localStorage.removeItem(CONFIG.STORAGE_KEY);
     }
 
+    function normalizeBatchStartIndex(startIndex) {
+        const total = BLACKLIST_UIDS.length;
+        if (total <= 0) {
+            return 0;
+        }
+        const numericStartIndex = Number.isFinite(startIndex) ? startIndex : parseInt(startIndex, 10);
+        const resolvedStartIndex = Number.isFinite(numericStartIndex) ? numericStartIndex : 0;
+        if (resolvedStartIndex >= total || resolvedStartIndex < 0) {
+            clearProgress();
+            return 0;
+        }
+        return resolvedStartIndex;
+    }
+
     async function batchBlock(startIndex = 0) {
         if (batchBlockRunning) {
             alert('批量拉黑正在进行中，请等待当前任务结束。');
@@ -405,6 +419,7 @@
 
         batchBlockRunning = true;
         batchBlockFinished = false;
+        startIndex = normalizeBatchStartIndex(startIndex);
         const total = BLACKLIST_UIDS.length;
         let success = 0;
         let failed = 0;
@@ -559,7 +574,7 @@
                 showNotification('批量拉黑已暂停', '点击继续按钮恢复处理');
             }
         } else {
-            const startIndex = getProgress();
+            const startIndex = normalizeBatchStartIndex(getProgress());
             batchBlock(startIndex);
         }
     }
@@ -1344,7 +1359,7 @@
                     alert('请先登录B站账号！');
                     return;
                 }
-                const startIndex = getProgress();
+                const startIndex = normalizeBatchStartIndex(getProgress());
                 batchBlock(startIndex);
             });
 

@@ -710,6 +710,26 @@
         localStorage.removeItem(CONFIG.STORAGE_KEY);
     }
 
+    /**
+     * 规范化批量拉黑的起始位置。
+     * 当进度已到末尾时，允许同一份列表直接从头重新执行。
+     * @param {number} startIndex - 原始开始索引
+     * @returns {number}
+     */
+    function normalizeBatchStartIndex(startIndex) {
+        const total = BLACKLIST_UIDS.length;
+        if (total <= 0) {
+            return 0;
+        }
+        const numericStartIndex = Number.isFinite(startIndex) ? startIndex : parseInt(startIndex, 10);
+        const resolvedStartIndex = Number.isFinite(numericStartIndex) ? numericStartIndex : 0;
+        if (resolvedStartIndex >= total || resolvedStartIndex < 0) {
+            clearProgress();
+            return 0;
+        }
+        return resolvedStartIndex;
+    }
+
     // ==================== 批量拉黑功能 ====================
 
     /**
@@ -729,6 +749,7 @@
         batchBlockRunning = true;
         batchBlockFinished = false;
         skippedCount = 0;
+        startIndex = normalizeBatchStartIndex(startIndex);
         const total = BLACKLIST_UIDS.length;
         let success = 0;
         let failed = 0;
@@ -1607,7 +1628,7 @@
                     alert('请先登录B站账号！');
                     return;
                 }
-                const startIndex = getProgress();
+                const startIndex = normalizeBatchStartIndex(getProgress());
                 batchBlock(startIndex);
             } else {
                 // 运行状态 - 暂停/继续
@@ -2100,7 +2121,7 @@
                     alert('请先登录B站账号！');
                     return;
                 }
-                const startIndex = getProgress();
+                const startIndex = normalizeBatchStartIndex(getProgress());
                 batchBlock(startIndex);
             });
 
