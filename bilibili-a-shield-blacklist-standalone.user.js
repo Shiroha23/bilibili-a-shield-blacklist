@@ -1,14 +1,16 @@
 // ==UserScript==
 // @name         B站A盾黑名单拉黑助手（简易版）
 // @namespace    http://tampermonkey.net/
-// @version      1.3-standalone
-// @description  自动将A盾黑名单中的用户添加到B站黑名单，仅使用脚本内置 UID 列表，不访问任何外部公示站
+// @version      1.4-standalone
+// @description  自动将A盾黑名单中的用户添加到B站黑名单，支持从 GitHub 备用源更新数据
 // @author       Shiroha23
 // @match        https://www.bilibili.com/*
+// @grant        GM_xmlhttpRequest
 // @grant        GM_registerMenuCommand
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_notification
+// @connect      raw.githubusercontent.com
 // @run-at       document-end
 // ==/UserScript==
 
@@ -143,6 +145,67 @@
     let myBlacklistUids = new Set();
     let blockDetailsLog = [];
     const MAX_LOG_ENTRIES = 2026;
+
+    function fetchText(url) {
+        if (typeof GM_xmlhttpRequest !== 'undefined') {
+            return new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method: 'GET',
+                    url: url,
+                    headers: { 'Accept': 'application/json, text/html;q=0.9, */*;q=0.8' },
+                    timeout: 60000,
+                    onload: function(response) {
+                        if (response.status >= 200 && response.status < 300) {
+                            resolve(response.responseText);
+                        } else {
+                            reject(new Error(`HTTP ${response.status}`));
+                        }
+                    },
+                    onerror: function() {
+                        reject(new Error('网络请求失败'));
+                    },
+                    ontimeout: function() {
+                        reject(new Error('请求超时'));
+                    }
+                });
+            });
+        }
+        return fetch(url, {
+            mode: 'cors',
+            credentials: 'omit',
+            headers: { 'Accept': 'application/json, text/html;q=0.9, */*;q=0.8' }
+        }).then(function(r) {
+            if (!r.ok) {
+                throw new Error(`HTTP ${r.status}`);
+            }
+            return r.text();
+        });
+    }
+
+    async function loadBackupAShieldBlacklist() {
+        try {
+            const text = await fetchText('https://raw.githubusercontent.com/Shiroha23/bilibili-a-shield-blacklist/main/bilibili-a-shield-blacklist-uids/bilibili-a-shield-blacklist-uids.txt');
+            
+            const uids = [];
+            const lines = text.split('\n');
+            
+            for (let line of lines) {
+                line = line.trim();
+                if (line && !line.startsWith('#')) {
+                    const uid = parseInt(line, 10);
+                    if (!isNaN(uid) && uid > 0) {
+                        uids.push(uid);
+                    }
+                }
+            }
+            
+            console.log(`✅ 备用A盾黑名单列表加载完成，共 ${uids.length} 条`);
+            return uids;
+        } catch (error) {
+            console.warn('⚠️ 加载备用A盾黑名单列表失败:', error);
+            return null;
+        }
+    }
 
     function loadEmbeddedBlacklist() {
         BLACKLIST_UIDS = FALLBACK_UIDS.slice();
@@ -1102,9 +1165,19 @@
                 <button id="bl-control-batch" style="padding: 10px; background: #00a1d6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
                     ${batchBlockFinished ? '🔄 重新批量拉黑' : (progress > 0 ? '▶️ 继续批量拉黑' : '▶️ 开始批量拉黑')}
                 </button>
-                <button id="bl-refresh-data" style="padding: 10px; background: #52c41a; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
-                    🔄 重新载入内置列表
-                </button>
+                <div style="position: relative;">
+                    <button id="bl-refresh-data" style="padding: 10px; background: #52c41a; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; width: 100%; text-align: center;">
+                        🔄 刷新数据 ▼
+                    </button>
+                    <div id="bl-refresh-menu" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e3e5e7; border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100000; display: none;">
+                        <button id="bl-refresh-remote" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
+                            🛡️ A盾黑名单（备用源）
+                        </button>
+                        <button id="bl-refresh-fallback" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
+                            📦 内置列表
+                        </button>
+                    </div>
+                </div>
 
                 <button id="bl-import-uids" style="padding: 10px; background: #fa8c16; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
                     📥 导入 UID
@@ -1123,7 +1196,7 @@
                 </button>
             </div>
             <div style="margin-top: 12px; font-size: 11px; color: #9499a0; line-height: 1.5;">
-                离线版仅使用脚本内 UID。更新列表请替换脚本或同步仓库中的 FALLBACK_UIDS。
+                简易版支持从 GitHub 备用源更新 A盾黑名单数据。
             </div>
         `;
 
@@ -1144,11 +1217,70 @@
             toggleBatchBlock();
         });
 
-        document.getElementById('bl-refresh-data').addEventListener('click', () => {
+        // 刷新数据按钮点击事件 - 显示/隐藏菜单
+        document.getElementById('bl-refresh-data').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const refreshMenu = document.getElementById('bl-refresh-menu');
+            
+            // 切换当前菜单
+            refreshMenu.style.display = refreshMenu.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // 子选项点击事件 - A盾黑名单（备用源）
+        document.getElementById('bl-refresh-remote').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            
+            const btn = document.getElementById('bl-refresh-data');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⌛ 刷新中...';
+            btn.disabled = true;
+            
+            try {
+                console.log('🔄 正在从 GitHub 备用源获取黑名单数据...');
+                const uids = await loadBackupAShieldBlacklist();
+                
+                if (uids && uids.length > 0) {
+                    BLACKLIST_UIDS = uids;
+                    DATA_SOURCE = 'A盾黑名单（备用源）';
+                    batchBlockFinished = false;
+                    clearProgress();
+                    console.log(`✅ 成功获取 ${uids.length} 条黑名单数据`);
+                    
+                    panel.remove();
+                    createControlPanel();
+                    showNotification('数据刷新', `✅ 成功从 A盾黑名单（备用源） 获取\n${uids.length} 条数据`);
+                } else {
+                    throw new Error('未找到UID数据');
+                }
+            } catch (error) {
+                console.warn('⚠️ 从 GitHub 备用源获取黑名单失败:', error);
+                showNotification('数据刷新失败', `❌ 从 A盾黑名单（备用源）获取数据失败: ${error.message}`);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                const menu = document.getElementById('bl-refresh-menu');
+                menu.style.display = 'none';
+            }
+        });
+
+        // 子选项点击事件 - 内置列表
+        document.getElementById('bl-refresh-fallback').addEventListener('click', (e) => {
+            e.stopPropagation();
             loadEmbeddedBlacklist();
             panel.remove();
             createControlPanel();
             showNotification('已重新载入', `当前内置列表共 ${BLACKLIST_UIDS.length} 条`);
+            
+            const menu = document.getElementById('bl-refresh-menu');
+            menu.style.display = 'none';
+        });
+
+        // 点击页面其他地方关闭菜单
+        document.addEventListener('click', () => {
+            const refreshMenu = document.getElementById('bl-refresh-menu');
+            if (refreshMenu) {
+                refreshMenu.style.display = 'none';
+            }
         });
 
         document.getElementById('bl-import-uids').addEventListener('click', () => {
