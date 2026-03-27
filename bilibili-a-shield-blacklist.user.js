@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站A盾黑名单拉黑助手
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.6
 // @description  自动将A盾黑名单中的用户添加到B站黑名单，支持从 listing.ssrv2.ltd 动态获取数据
 // @author       Shiroha23
 // @match        https://www.bilibili.com/*
@@ -186,7 +186,16 @@
     /** 加载XianLists列表 */
     async function loadXianJunList() {
         try {
-            const text = await fetchText('https://gcore.jsdelivr.net/gh/Darknights1750/XianLists@main/xianLists.json');
+            let text;
+            try {
+                // 首先尝试主源
+                text = await fetchText('https://gcore.jsdelivr.net/gh/Darknights1750/XianLists@main/xianLists.json');
+            } catch (primaryError) {
+                console.warn('⚠️ 主源加载失败，尝试备用源:', primaryError);
+                // 主源失败，使用备用源
+                text = await fetchText('https://raw.githubusercontent.com/Shiroha23/bilibili-a-shield-blacklist/main/bilibili-xianLists-uids/xianLists.json');
+            }
+            
             const data = JSON.parse(text);
             
             xianJunUids.clear();
