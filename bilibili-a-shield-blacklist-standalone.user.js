@@ -545,7 +545,11 @@
             batchBlockPaused = false;
             if (btn) {
                 const progress = getProgress();
-                btn.innerHTML = progress > 0 ? '▶️ 继续批量拉黑' : '▶️ 开始批量拉黑';
+                if (batchBlockFinished) {
+                    btn.innerHTML = '🔄 重新批量拉黑';
+                } else {
+                    btn.innerHTML = progress > 0 ? '▶️ 继续批量拉黑' : '▶️ 开始批量拉黑';
+                }
                 btn.style.background = '#00a1d6';
             }
             updateStatusDisplay();
@@ -574,6 +578,11 @@
                 showNotification('批量拉黑已暂停', '点击继续按钮恢复处理');
             }
         } else {
+            // 如果是重新批量拉黑，清除进度
+            if (batchBlockFinished) {
+                clearProgress();
+                batchBlockFinished = false;
+            }
             const startIndex = normalizeBatchStartIndex(getProgress());
             batchBlock(startIndex);
         }
@@ -1091,7 +1100,7 @@
             </div>
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 <button id="bl-control-batch" style="padding: 10px; background: #00a1d6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
-                    ${progress > 0 ? '▶️ 开始批量拉黑' : '▶️ 开始批量拉黑'}
+                    ${batchBlockFinished ? '🔄 重新批量拉黑' : (progress > 0 ? '▶️ 继续批量拉黑' : '▶️ 开始批量拉黑')}
                 </button>
                 <button id="bl-refresh-data" style="padding: 10px; background: #52c41a; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
                     🔄 重新载入内置列表

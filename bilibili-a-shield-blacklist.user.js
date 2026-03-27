@@ -889,10 +889,14 @@
         } finally {
             batchBlockRunning = false;
             batchBlockPaused = false;
-            // 更新按钮为开始/继续状态
+            // 更新按钮为开始/继续/重新状态
             if (btn) {
                 const progress = getProgress();
-                btn.innerHTML = progress > 0 ? '▶️ 继续批量拉黑' : '▶️ 开始批量拉黑';
+                if (batchBlockFinished) {
+                    btn.innerHTML = '🔄 重新批量拉黑';
+                } else {
+                    btn.innerHTML = progress > 0 ? '▶️ 继续批量拉黑' : '▶️ 开始批量拉黑';
+                }
                 btn.style.background = '#00a1d6';
             }
             // 更新状态显示
@@ -1555,7 +1559,7 @@
             </div>
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 <button id="bl-control-batch" style="padding: 10px; background: #00a1d6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
-                    ${progress > 0 ? '▶️ 继续批量拉黑' : '▶️ 开始批量拉黑'}
+                    ${batchBlockFinished ? '🔄 重新批量拉黑' : (progress > 0 ? '▶️ 继续批量拉黑' : '▶️ 开始批量拉黑')}
                 </button>
                 <div style="position: relative;">
                     <button id="bl-refresh-data" style="padding: 10px; background: #52c41a; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; width: 100%; text-align: center;">
@@ -1623,10 +1627,15 @@
             const btn = document.getElementById('bl-control-batch');
             
             if (!batchBlockRunning) {
-                // 未运行状态 - 开始/继续批量拉黑
+                // 未运行状态 - 开始/继续/重新批量拉黑
                 if (!isLoggedIn()) {
                     alert('请先登录B站账号！');
                     return;
+                }
+                // 如果是重新批量拉黑，清除进度
+                if (batchBlockFinished) {
+                    clearProgress();
+                    batchBlockFinished = false;
                 }
                 const startIndex = normalizeBatchStartIndex(getProgress());
                 batchBlock(startIndex);
