@@ -769,6 +769,10 @@
      * @param {number} startIndex - 开始索引
      */
     async function batchBlock(startIndex = 0) {
+        if (isRefreshing) {
+            showNotification('操作被阻止', '开始批量拉黑前请等待数据刷新完成', false, '200px', 'bilibili-blacklist-blocked-tip', 5000);
+            return;
+        }
         if (batchBlockRunning) {
             alert('批量拉黑正在进行中，请等待当前任务结束。');
             return;
@@ -1713,6 +1717,9 @@
             
             if (!batchBlockRunning) {
                 // 未运行状态 - 开始/继续/重新批量拉黑
+                if (!ensureBatchNotRunning('开始批量拉黑')) {
+                    return;
+                }
                 if (!isLoggedIn()) {
                     alert('请先登录B站账号！');
                     return;
@@ -1726,6 +1733,12 @@
                 batchBlock(startIndex);
             } else {
                 // 运行状态 - 暂停/继续
+                if (batchBlockPaused) {
+                    // 从暂停状态继续 - 检查是否在刷新数据
+                    if (!ensureBatchNotRunning('继续批量拉黑')) {
+                        return;
+                    }
+                }
                 batchBlockPaused = !batchBlockPaused;
                 if (batchBlockPaused) {
                     btn.innerHTML = '▶️ 继续批量拉黑';
