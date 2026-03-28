@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         B站A盾黑名单拉黑助手（简易版）
 // @namespace    http://tampermonkey.net/
-// @version      1.5-standalone
-// @description  自动将A盾黑名单中的用户添加到B站黑名单，支持从 GitHub 备用源更新数据
+// @version      1.6-standalone
+// @description  自动将A盾黑名单中的用户添加到B站黑名单，支持从 GitHub 备用源更新数据和本地缓存
 // @author       Shiroha23
 // @match        https://www.bilibili.com/*
 // @grant        GM_xmlhttpRequest
@@ -24,7 +24,8 @@
         BATCH_SIZE: 10,
         STORAGE_KEY: 'bilibili_blacklist_progress',
         SKIP_ALREADY_BLOCKED: true,
-        MY_BLACKS_CACHE_KEY: 'bilibili_my_blacks_cache'
+        MY_BLACKS_CACHE_KEY: 'bilibili_my_blacks_cache',
+        CACHE_KEY: 'bilibili_blacklist_cache'
     };
 
     // ==================== 黑名单数据 ====================
@@ -200,6 +201,8 @@
             }
             
             console.log(`✅ 备用A盾黑名单列表加载完成，共 ${uids.length} 条`);
+            // 保存到缓存
+            saveBlacklistCache(uids);
             return uids;
         } catch (error) {
             console.warn('⚠️ 加载备用A盾黑名单列表失败:', error);
@@ -212,6 +215,38 @@
         DATA_SOURCE = '内置列表';
         batchBlockFinished = false;
         clearProgress();
+    }
+
+    /**
+     * 保存黑名单缓存
+     */
+    function saveBlacklistCache(uids) {
+        try {
+            if (typeof GM_setValue !== 'undefined') {
+                GM_setValue(CONFIG.CACHE_KEY, JSON.stringify(uids));
+            }
+            localStorage.setItem(CONFIG.CACHE_KEY, JSON.stringify(uids));
+        } catch (e) {
+            console.warn('缓存保存失败:', e);
+        }
+    }
+
+    /**
+     * 获取黑名单缓存
+     */
+    function getBlacklistCache() {
+        try {
+            if (typeof GM_getValue !== 'undefined') {
+                const cached = GM_getValue(CONFIG.CACHE_KEY);
+                if (cached) {
+                    return JSON.parse(cached);
+                }
+            }
+            const cached = localStorage.getItem(CONFIG.CACHE_KEY);
+            return cached ? JSON.parse(cached) : null;
+        } catch (e) {
+            return null;
+        }
     }
 
     function updateStatusDisplay() {
@@ -1189,6 +1224,9 @@
                         <button id="bl-refresh-remote" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
                             🛡️ A盾黑名单（备用源）
                         </button>
+                        <button id="bl-refresh-cache" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
+                            💾 本地缓存
+                        </button>
                         <button id="bl-refresh-fallback" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
                             📦 内置列表
                         </button>
@@ -1212,7 +1250,7 @@
                 </button>
             </div>
             <div style="margin-top: 12px; font-size: 11px; color: #9499a0; line-height: 1.5;">
-                简易版支持从 GitHub 备用源更新 A盾黑名单数据。
+                简易版支持从 GitHub 备用源更新 A盾黑名单数据和本地缓存。
             </div>
         `;
 
@@ -1277,6 +1315,29 @@
                 const menu = document.getElementById('bl-refresh-menu');
                 menu.style.display = 'none';
             }
+        });
+
+        // 子选项点击事件 - 本地缓存
+        document.getElementById('bl-refresh-cache').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const cached = getBlacklistCache();
+            
+            if (cached && cached.length > 0) {
+                BLACKLIST_UIDS = cached;
+                DATA_SOURCE = '本地缓存';
+                batchBlockFinished = false;
+                clearProgress();
+                console.log(`✅ 使用本地缓存数据: ${cached.length} 条`);
+                
+                panel.remove();
+                createControlPanel();
+                showNotification('数据刷新', `✅ 使用本地缓存数据\n${cached.length} 条数据`);
+            } else {
+                showNotification('数据刷新失败', '❌ 本地缓存为空');
+            }
+            
+            const menu = document.getElementById('bl-refresh-menu');
+            menu.style.display = 'none';
         });
 
         // 子选项点击事件 - 内置列表
@@ -1477,12 +1538,24 @@
     function init() {
         console.log('🛡️ B站A盾黑名单拉黑助手（简易版）已加载');
 
+        // 优先使用本地缓存数据
+        function loadBlacklistData() {
+            const cached = getBlacklistCache();
+            if (cached && cached.length > 0) {
+                BLACKLIST_UIDS = cached;
+                DATA_SOURCE = '本地缓存';
+                console.log(`📋 使用本地缓存数据: ${cached.length} 条`);
+            } else {
+                loadEmbeddedBlacklist();
+                console.log(`📋 使用内置列表: ${BLACKLIST_UIDS.length} 条`);
+            }
+        }
+
         // 检查是否已同意免责声明
         if (!hasAgreedToDisclaimer()) {
             showDisclaimer().then((agreed) => {
                 if (agreed) {
-                    loadEmbeddedBlacklist();
-                    console.log(`📋 黑名单用户总数: ${BLACKLIST_UIDS.length}`);
+                    loadBlacklistData();
                     createFloatingButton();
                     registerMenuCommands();
                 } else {
@@ -1490,8 +1563,7 @@
                 }
             });
         } else {
-            loadEmbeddedBlacklist();
-            console.log(`📋 黑名单用户总数: ${BLACKLIST_UIDS.length}`);
+            loadBlacklistData();
             createFloatingButton();
             registerMenuCommands();
         }
