@@ -144,6 +144,7 @@
     let batchBlockRunning = false;
     let batchBlockPaused = false;
     let batchBlockFinished = false;
+    let isRefreshing = false;
     let lastRefreshTime = 0;
     let myBlacklistUids = new Set();
     let blockDetailsLog = [];
@@ -787,6 +788,10 @@
     }
 
     function ensureBatchNotRunning(actionLabel) {
+        if (isRefreshing) {
+            showNotification('操作被阻止', `${actionLabel}前请等待数据刷新完成`, false, '200px', 'bilibili-blacklist-blocked-tip', 5000);
+            return false;
+        }
         if (!batchBlockRunning || batchBlockPaused) {
             return true;
         }
@@ -1360,6 +1365,7 @@
             const originalText = btn.innerHTML;
             btn.innerHTML = '⌛ 刷新中...';
             btn.disabled = true;
+            isRefreshing = true;
             
             try {
                 console.log('🔄 正在从 GitHub 备用源获取黑名单数据...');
@@ -1386,6 +1392,7 @@
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
+                isRefreshing = false;
                 const menu = document.getElementById('bl-refresh-menu');
                 menu.style.display = 'none';
             }

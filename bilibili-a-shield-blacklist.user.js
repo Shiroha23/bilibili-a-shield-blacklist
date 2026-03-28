@@ -166,6 +166,8 @@
     let batchBlockPaused = false;
     /** 批量拉黑完成状态 */
     let batchBlockFinished = false;
+    /** 是否正在刷新数据 */
+    let isRefreshing = false;
     /** A盾黑名单上次刷新时间 */
     let lastRefreshTime = 0;
     /** 我的黑名单UID集合（用于快速检查） */
@@ -1192,6 +1194,10 @@
     }
 
     function ensureBatchNotRunning(actionLabel) {
+        if (isRefreshing) {
+            showNotification('操作被阻止', `${actionLabel}前请等待数据刷新完成`, false, '200px', 'bilibili-blacklist-blocked-tip', 5000);
+            return false;
+        }
         if (!batchBlockRunning || batchBlockPaused) {
             return true;
         }
@@ -1812,6 +1818,7 @@
             const originalText = btn.innerHTML;
             btn.innerHTML = '⌛ 刷新中...';
             btn.disabled = true;
+            isRefreshing = true;
             
             try {
                 console.log('🔄 正在从 listing.ssrv2.ltd API 获取黑名单数据...');
@@ -1845,6 +1852,7 @@
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
+                isRefreshing = false;
                 const menu = document.getElementById('bl-refresh-menu');
                 menu.style.display = 'none';
             }
@@ -1929,6 +1937,7 @@
             const originalText = btn.innerHTML;
             btn.innerHTML = '⌛ 刷新中...';
             btn.disabled = true;
+            isRefreshing = true;
             
             try {
                 console.log('🔄 正在从 XianLists 获取黑名单数据...');
@@ -1956,6 +1965,7 @@
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
+                isRefreshing = false;
                 const menu = document.getElementById('bl-refresh-menu');
                 menu.style.display = 'none';
             }
@@ -1986,6 +1996,7 @@
             const originalText = btn.innerHTML;
             btn.innerHTML = '⌛ 刷新中...';
             btn.disabled = true;
+            isRefreshing = true;
             
             try {
                 console.log('🔄 正在从 直播间机器人 获取黑名单数据...');
@@ -2013,6 +2024,7 @@
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
+                isRefreshing = false;
                 const menu = document.getElementById('bl-refresh-menu');
                 menu.style.display = 'none';
             }
