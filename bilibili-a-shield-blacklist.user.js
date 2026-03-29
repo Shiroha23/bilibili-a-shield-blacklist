@@ -1503,7 +1503,7 @@
         titleRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 16px 16px 8px; border-bottom: 1px solid #e3e5e7;';
         const h = document.createElement('h3');
         h.style.cssText = 'margin: 0; font-size: 16px; color: #18191c;';
-        h.textContent = '🔍 UID批量判断';
+        h.textContent = '🔍 UID 查重';
         const closeBtn = document.createElement('button');
         closeBtn.type = 'button';
         closeBtn.textContent = '×';
@@ -1868,35 +1868,28 @@
                 <button id="bl-view-details" style="padding: 10px; background: #1890ff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
                     📋 查看详细记录
                 </button>
-                <button id="bl-reset-progress" style="padding: 10px; background: #f6f7f8; color: #61666d; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: background 0.2s;">
+                <button id="bl-reset-progress" style="padding: 10px; background: #f5222d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
                     🔄 重置进度
                 </button>
-                <button id="bl-blacklist-manager" style="padding: 10px; background: #722ed1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
-                    📝 黑名单管理
-                </button>
                 <div style="position: relative;">
-                    <button id="bl-data-menu" style="padding: 10px; background: #13c2c2; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; width: 100%; text-align: center;">
-                        📤 导入/导出 ▼
+                    <button id="bl-blacklist-manager" style="padding: 10px; background: #722ed1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; width: 100%; text-align: center;">
+                        📝 黑名单管理 ▼
                     </button>
-                    <div id="bl-data-submenu" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e3e5e7; border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100000; display: none;">
+                    <div id="bl-blacklist-manager-submenu" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e3e5e7; border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100000; display: none;">
+                        <button id="bl-test-uid-check" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
+                            🔍 UID 查重
+                        </button>
                         <button id="bl-import-uids" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
                             📥 导入 UID
                         </button>
                         <button id="bl-export-uids" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
                             📤 导出 UID
                         </button>
+                        <button id="bl-open-my-blacklist" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
+                            📝 我的B站黑名单
+                        </button>
                         <button id="bl-export-my-blacklist" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
                             🧾 导出我的B站黑名单
-                        </button>
-                    </div>
-                </div>
-                <div style="position: relative;">
-                    <button id="bl-test-menu" style="padding: 10px; background: #eb2f96; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; width: 100%; text-align: center;">
-                        🧪 测试选项 ▼
-                    </button>
-                    <div id="bl-test-submenu" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e3e5e7; border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100000; display: none;">
-                        <button id="bl-test-uid-check" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
-                            🔍 UID判断
                         </button>
                     </div>
                 </div>
@@ -1966,55 +1959,43 @@
         document.getElementById('bl-refresh-data').addEventListener('click', (e) => {
             e.stopPropagation();
             const refreshMenu = document.getElementById('bl-refresh-menu');
-            const dataMenu = document.getElementById('bl-data-submenu');
-            const testMenu = document.getElementById('bl-test-submenu');
+            const managerMenu = document.getElementById('bl-blacklist-manager-submenu');
             
             // 关闭其他菜单
-            if (dataMenu) {
-                dataMenu.style.display = 'none';
-            }
-            if (testMenu) {
-                testMenu.style.display = 'none';
+            if (managerMenu) {
+                managerMenu.style.display = 'none';
             }
             
             // 切换当前菜单
             refreshMenu.style.display = refreshMenu.style.display === 'none' ? 'block' : 'none';
         });
 
-        // 导入/导出菜单点击事件 - 显示/隐藏子菜单
-        document.getElementById('bl-data-menu').addEventListener('click', (e) => {
+        // 黑名单管理菜单点击事件 - 显示/隐藏子菜单
+        document.getElementById('bl-blacklist-manager').addEventListener('click', (e) => {
             e.stopPropagation();
             const refreshMenu = document.getElementById('bl-refresh-menu');
-            const dataMenu = document.getElementById('bl-data-submenu');
-            const testMenu = document.getElementById('bl-test-submenu');
+            const managerMenu = document.getElementById('bl-blacklist-manager-submenu');
             
             // 关闭其他菜单
             if (refreshMenu) {
                 refreshMenu.style.display = 'none';
             }
-            if (testMenu) {
-                testMenu.style.display = 'none';
-            }
             
             // 切换当前菜单
-            dataMenu.style.display = dataMenu.style.display === 'none' ? 'block' : 'none';
+            managerMenu.style.display = managerMenu.style.display === 'none' ? 'block' : 'none';
         });
 
         // 点击页面其他地方关闭所有菜单
         if (!globalMenuCloseHandlerBound) {
             document.addEventListener('click', () => {
                 const refreshMenu = document.getElementById('bl-refresh-menu');
-                const dataMenu = document.getElementById('bl-data-submenu');
-                const testMenu = document.getElementById('bl-test-submenu');
+                const managerMenu = document.getElementById('bl-blacklist-manager-submenu');
                 
                 if (refreshMenu) {
                     refreshMenu.style.display = 'none';
                 }
-                if (dataMenu) {
-                    dataMenu.style.display = 'none';
-                }
-                if (testMenu) {
-                    testMenu.style.display = 'none';
+                if (managerMenu) {
+                    managerMenu.style.display = 'none';
                 }
             });
             globalMenuCloseHandlerBound = true;
@@ -2258,33 +2239,57 @@
             }
         });
 
-        // 子选项点击事件
-        document.getElementById('bl-export-uids').addEventListener('click', (e) => {
+        // 黑名单管理子选项点击事件
+        document.getElementById('bl-open-my-blacklist').addEventListener('click', (e) => {
             e.stopPropagation();
-            exportBlacklistUids();
-            const menu = document.getElementById('bl-data-submenu');
-            menu.style.display = 'none';
+            window.open('https://account.bilibili.com/account/blacklist', '_blank');
+            const menu = document.getElementById('bl-blacklist-manager-submenu');
+            if (menu) {
+                menu.style.display = 'none';
+            }
         });
 
         document.getElementById('bl-import-uids').addEventListener('click', (e) => {
             e.stopPropagation();
             if (!ensureBatchNotRunning('导入 UID')) {
-                const menu = document.getElementById('bl-data-submenu');
+                const menu = document.getElementById('bl-blacklist-manager-submenu');
                 if (menu) {
                     menu.style.display = 'none';
                 }
                 return;
             }
             showImportUidDialog();
-            const menu = document.getElementById('bl-data-submenu');
-            menu.style.display = 'none';
+            const menu = document.getElementById('bl-blacklist-manager-submenu');
+            if (menu) {
+                menu.style.display = 'none';
+            }
+        });
+
+        document.getElementById('bl-export-uids').addEventListener('click', (e) => {
+            e.stopPropagation();
+            exportBlacklistUids();
+            const menu = document.getElementById('bl-blacklist-manager-submenu');
+            if (menu) {
+                menu.style.display = 'none';
+            }
         });
 
         document.getElementById('bl-export-my-blacklist').addEventListener('click', async (e) => {
             e.stopPropagation();
             await exportMyBilibiliBlacklist();
-            const menu = document.getElementById('bl-data-submenu');
-            menu.style.display = 'none';
+            const menu = document.getElementById('bl-blacklist-manager-submenu');
+            if (menu) {
+                menu.style.display = 'none';
+            }
+        });
+
+        document.getElementById('bl-test-uid-check').addEventListener('click', (e) => {
+            e.stopPropagation();
+            showUidCheckDialog();
+            const menu = document.getElementById('bl-blacklist-manager-submenu');
+            if (menu) {
+                menu.style.display = 'none';
+            }
         });
 
         document.getElementById('bl-reset-progress').addEventListener('click', () => {
@@ -2297,40 +2302,6 @@
         // 查看详细记录按钮
         document.getElementById('bl-view-details').addEventListener('click', () => {
             showDetailsPanel();
-        });
-
-        // 黑名单管理按钮
-        document.getElementById('bl-blacklist-manager').addEventListener('click', () => {
-            window.open('https://account.bilibili.com/account/blacklist', '_blank');
-        });
-
-        // 测试选项菜单点击事件 - 显示/隐藏子菜单
-        document.getElementById('bl-test-menu').addEventListener('click', (e) => {
-            e.stopPropagation();
-            const refreshMenu = document.getElementById('bl-refresh-menu');
-            const dataMenu = document.getElementById('bl-data-submenu');
-            const testMenu = document.getElementById('bl-test-submenu');
-            
-            // 关闭其他菜单
-            if (refreshMenu) {
-                refreshMenu.style.display = 'none';
-            }
-            if (dataMenu) {
-                dataMenu.style.display = 'none';
-            }
-            
-            // 切换当前菜单
-            testMenu.style.display = testMenu.style.display === 'none' ? 'block' : 'none';
-        });
-
-        // UID判断子选项点击事件
-        document.getElementById('bl-test-uid-check').addEventListener('click', (e) => {
-            e.stopPropagation();
-            showUidCheckDialog();
-            const testMenu = document.getElementById('bl-test-submenu');
-            if (testMenu) {
-                testMenu.style.display = 'none';
-            }
         });
     }
 
