@@ -1893,6 +1893,16 @@
                         </button>
                     </div>
                 </div>
+                <div style="position: relative;">
+                    <button id="bl-secret-menu" style="padding: 10px; background: #52c41a; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; width: 100%; text-align: center;">
+                        👀 只有我知道 ▼
+                    </button>
+                    <div id="bl-secret-submenu" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e3e5e7; border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100000; display: none;">
+                        <button id="bl-open-github" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
+                            🔗 GitHub
+                        </button>
+                    </div>
+                </div>
             </div>
             <div style="margin-top: 12px; font-size: 11px; color: #9499a0; line-height: 1.5;">
                 提示: 点击开始后脚本会自动批量拉黑黑名单中的用户。请勿频繁操作以免触发风控。
@@ -1975,14 +1985,47 @@
             e.stopPropagation();
             const refreshMenu = document.getElementById('bl-refresh-menu');
             const managerMenu = document.getElementById('bl-blacklist-manager-submenu');
+            const secretMenu = document.getElementById('bl-secret-submenu');
             
             // 关闭其他菜单
             if (refreshMenu) {
                 refreshMenu.style.display = 'none';
             }
+            if (secretMenu) {
+                secretMenu.style.display = 'none';
+            }
             
             // 切换当前菜单
             managerMenu.style.display = managerMenu.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // 只有我知道菜单点击事件 - 显示/隐藏子菜单
+        document.getElementById('bl-secret-menu').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const refreshMenu = document.getElementById('bl-refresh-menu');
+            const managerMenu = document.getElementById('bl-blacklist-manager-submenu');
+            const secretMenu = document.getElementById('bl-secret-submenu');
+            
+            // 关闭其他菜单
+            if (refreshMenu) {
+                refreshMenu.style.display = 'none';
+            }
+            if (managerMenu) {
+                managerMenu.style.display = 'none';
+            }
+            
+            // 切换当前菜单
+            secretMenu.style.display = secretMenu.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // GitHub按钮点击事件 - 打开GitHub链接
+        document.getElementById('bl-open-github').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const secretMenu = document.getElementById('bl-secret-submenu');
+            if (secretMenu) {
+                secretMenu.style.display = 'none';
+            }
+            window.open('https://github.com/Shiroha23/bilibili-a-shield-blacklist', '_blank');
         });
 
         // 点击页面其他地方关闭所有菜单
@@ -1990,12 +2033,16 @@
             document.addEventListener('click', () => {
                 const refreshMenu = document.getElementById('bl-refresh-menu');
                 const managerMenu = document.getElementById('bl-blacklist-manager-submenu');
+                const secretMenu = document.getElementById('bl-secret-submenu');
                 
                 if (refreshMenu) {
                     refreshMenu.style.display = 'none';
                 }
                 if (managerMenu) {
                     managerMenu.style.display = 'none';
+                }
+                if (secretMenu) {
+                    secretMenu.style.display = 'none';
                 }
             });
             globalMenuCloseHandlerBound = true;
