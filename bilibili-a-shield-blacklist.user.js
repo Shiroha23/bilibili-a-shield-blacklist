@@ -1467,6 +1467,199 @@
     /**
      * 显示导入 UID 对话框（文本框 + 可选 txt 文件）
      */
+    function showUidCheckDialog() {
+        const existing = document.getElementById('bilibili-blacklist-uid-check-overlay');
+        if (existing) {
+            existing.remove();
+        }
+
+        const overlay = document.createElement('div');
+        overlay.id = 'bilibili-blacklist-uid-check-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            inset: 0;
+            z-index: 100000;
+            background: rgba(0,0,0,0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            box-sizing: border-box;
+        `;
+
+        const box = document.createElement('div');
+        box.style.cssText = `
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 450px;
+            display: flex;
+            flex-direction: column;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        `;
+
+        const titleRow = document.createElement('div');
+        titleRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 16px 16px 8px; border-bottom: 1px solid #e3e5e7;';
+        const h = document.createElement('h3');
+        h.style.cssText = 'margin: 0; font-size: 16px; color: #18191c;';
+        h.textContent = '🔍 UID批量判断';
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.textContent = '×';
+        closeBtn.style.cssText = 'background: none; border: none; cursor: pointer; font-size: 20px; color: #9499a0; line-height: 1;';
+        closeBtn.addEventListener('click', () => overlay.remove());
+        titleRow.appendChild(h);
+        titleRow.appendChild(closeBtn);
+
+        const hint = document.createElement('div');
+        hint.style.cssText = 'padding: 8px 16px; font-size: 12px; color: #61666d; line-height: 1.5;';
+        hint.textContent = '每行一个UID，或用逗号、分号分隔；也可粘贴个人空间链接，或选择txt文件导入。';
+
+        const ta = document.createElement('textarea');
+        ta.placeholder = '例如：\n123456789\nhttps://space.bilibili.com/987654321';
+        ta.style.cssText = `
+            margin: 0 16px;
+            width: calc(100% - 32px);
+            min-height: 120px;
+            max-height: 35vh;
+            padding: 10px;
+            border: 1px solid #e3e5e7;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: ui-monospace, monospace;
+            resize: vertical;
+            box-sizing: border-box;
+        `;
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.txt,text/plain';
+        fileInput.style.display = 'none';
+
+        const resultDiv = document.createElement('div');
+        resultDiv.id = 'bl-uid-check-result';
+        resultDiv.style.cssText = 'margin: 8px 16px 0; padding: 12px; border-radius: 8px; font-size: 13px; line-height: 1.6; display: none;';
+
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px;';
+
+        const pickFileBtn = document.createElement('button');
+        pickFileBtn.type = 'button';
+        pickFileBtn.textContent = '📄 选择 txt 文件';
+        pickFileBtn.style.cssText = 'padding: 8px 12px; background: #f6f7f8; color: #18191c; border: 1px solid #e3e5e7; border-radius: 6px; cursor: pointer; font-size: 13px;';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = '关闭';
+        cancelBtn.style.cssText = 'margin-left: auto; padding: 8px 16px; background: #f6f7f8; color: #61666d; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;';
+
+        const checkBtn = document.createElement('button');
+        checkBtn.type = 'button';
+        checkBtn.textContent = '检查';
+        checkBtn.style.cssText = 'padding: 8px 16px; background: #00a1d6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;';
+
+        pickFileBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', function() {
+            const file = this.files && this.files[0];
+            if (!file) {
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function() {
+                ta.value = String(reader.result || '');
+            };
+            reader.readAsText(file, 'UTF-8');
+        });
+
+        cancelBtn.addEventListener('click', () => overlay.remove());
+        checkBtn.addEventListener('click', () => {
+            const text = ta.value.trim();
+            resultDiv.style.display = 'block';
+            
+            if (!text) {
+                resultDiv.style.cssText = 'margin: 8px 16px 0; padding: 12px; border-radius: 8px; font-size: 13px; line-height: 1.6; background: #fff2f0; color: #f5222d;';
+                resultDiv.textContent = '❌ 请输入UID或选择文件';
+                return;
+            }
+
+            const uids = new Set();
+            const lines = text.split(/[\n\r]+/);
+            const uidPattern = /(?:space\.bilibili\.com\/|uid[:：]\s*)?(\d+)/gi;
+            
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('#')) continue;
+                
+                let m;
+                while ((m = uidPattern.exec(trimmed)) !== null) {
+                    const uid = parseInt(m[1], 10);
+                    if (!isNaN(uid) && uid > 0) {
+                        uids.add(uid);
+                    }
+                }
+            }
+
+            if (uids.size === 0) {
+                resultDiv.style.cssText = 'margin: 8px 16px 0; padding: 12px; border-radius: 8px; font-size: 13px; line-height: 1.6; background: #fff2f0; color: #f5222d;';
+                resultDiv.textContent = '❌ 未找到有效的UID';
+                return;
+            }
+
+            let inBlacklist = 0;
+            let notInBlacklist = 0;
+            const inList = [];
+            const notInList = [];
+
+            for (const uid of uids) {
+                if (BLACKLIST_UIDS.includes(uid)) {
+                    inBlacklist++;
+                    inList.push(uid);
+                } else {
+                    notInBlacklist++;
+                    notInList.push(uid);
+                }
+            }
+
+            let resultHtml = `<div style="margin-bottom: 8px;"><strong>检查结果：</strong></div>`;
+            resultHtml += `<div style="margin-bottom: 4px;">✅ 在黑名单中：<strong style="color: #52c41a;">${inBlacklist}</strong> 个</div>`;
+            resultHtml += `<div style="margin-bottom: 4px;">❌ 不在黑名单中：<strong style="color: #fa8c16;">${notInBlacklist}</strong> 个</div>`;
+            resultHtml += `<div>总计：<strong>${uids.size}</strong> 个</div>`;
+            
+            if (inList.length > 0) {
+                resultHtml += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e3e5e7;">`;
+                resultHtml += `<div style="margin-bottom: 4px;"><strong>在黑名单中的UID：</strong></div>`;
+                resultHtml += `<div style="font-family: ui-monospace, monospace; font-size: 12px; color: #52c41a;">${inList.join(', ')}</div>`;
+                resultHtml += `</div>`;
+            }
+            
+            if (notInList.length > 0) {
+                resultHtml += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e3e5e7;">`;
+                resultHtml += `<div style="margin-bottom: 4px;"><strong>不在黑名单中的UID：</strong></div>`;
+                resultHtml += `<div style="font-family: ui-monospace, monospace; font-size: 12px; color: #fa8c16;">${notInList.join(', ')}</div>`;
+                resultHtml += `</div>`;
+            }
+
+            resultDiv.style.cssText = 'margin: 8px 16px 0; padding: 12px; border-radius: 8px; font-size: 13px; line-height: 1.6; background: #f6f7f8; color: #18191c; max-height: 30vh; overflow-y: auto;';
+            resultDiv.innerHTML = resultHtml;
+        });
+
+        btnRow.appendChild(pickFileBtn);
+        btnRow.appendChild(cancelBtn);
+        btnRow.appendChild(checkBtn);
+
+        box.appendChild(titleRow);
+        box.appendChild(hint);
+        box.appendChild(ta);
+        box.appendChild(fileInput);
+        box.appendChild(resultDiv);
+        box.appendChild(btnRow);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        
+        ta.focus();
+    }
+
     function showImportUidDialog() {
         const existing = document.getElementById('bilibili-blacklist-import-overlay');
         if (existing) {
@@ -1694,6 +1887,16 @@
                 <button id="bl-blacklist-manager" style="padding: 10px; background: #722ed1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
                     📝 黑名单管理
                 </button>
+                <div style="position: relative;">
+                    <button id="bl-test-menu" style="padding: 10px; background: #eb2f96; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; width: 100%; text-align: center;">
+                        🧪 测试选项 ▼
+                    </button>
+                    <div id="bl-test-submenu" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e3e5e7; border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100000; display: none;">
+                        <button id="bl-test-uid-check" style="padding: 8px 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; transition: background 0.2s;">
+                            🔍 UID判断
+                        </button>
+                    </div>
+                </div>
                 <button id="bl-reset-progress" style="padding: 10px; background: #f6f7f8; color: #61666d; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: background 0.2s;">
                     🔄 重置进度
                 </button>
@@ -1764,10 +1967,14 @@
             e.stopPropagation();
             const refreshMenu = document.getElementById('bl-refresh-menu');
             const dataMenu = document.getElementById('bl-data-submenu');
+            const testMenu = document.getElementById('bl-test-submenu');
             
             // 关闭其他菜单
             if (dataMenu) {
                 dataMenu.style.display = 'none';
+            }
+            if (testMenu) {
+                testMenu.style.display = 'none';
             }
             
             // 切换当前菜单
@@ -1779,10 +1986,14 @@
             e.stopPropagation();
             const refreshMenu = document.getElementById('bl-refresh-menu');
             const dataMenu = document.getElementById('bl-data-submenu');
+            const testMenu = document.getElementById('bl-test-submenu');
             
             // 关闭其他菜单
             if (refreshMenu) {
                 refreshMenu.style.display = 'none';
+            }
+            if (testMenu) {
+                testMenu.style.display = 'none';
             }
             
             // 切换当前菜单
@@ -1794,12 +2005,16 @@
             document.addEventListener('click', () => {
                 const refreshMenu = document.getElementById('bl-refresh-menu');
                 const dataMenu = document.getElementById('bl-data-submenu');
+                const testMenu = document.getElementById('bl-test-submenu');
                 
                 if (refreshMenu) {
                     refreshMenu.style.display = 'none';
                 }
                 if (dataMenu) {
                     dataMenu.style.display = 'none';
+                }
+                if (testMenu) {
+                    testMenu.style.display = 'none';
                 }
             });
             globalMenuCloseHandlerBound = true;
@@ -2087,6 +2302,35 @@
         // 黑名单管理按钮
         document.getElementById('bl-blacklist-manager').addEventListener('click', () => {
             window.open('https://account.bilibili.com/account/blacklist', '_blank');
+        });
+
+        // 测试选项菜单点击事件 - 显示/隐藏子菜单
+        document.getElementById('bl-test-menu').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const refreshMenu = document.getElementById('bl-refresh-menu');
+            const dataMenu = document.getElementById('bl-data-submenu');
+            const testMenu = document.getElementById('bl-test-submenu');
+            
+            // 关闭其他菜单
+            if (refreshMenu) {
+                refreshMenu.style.display = 'none';
+            }
+            if (dataMenu) {
+                dataMenu.style.display = 'none';
+            }
+            
+            // 切换当前菜单
+            testMenu.style.display = testMenu.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // UID判断子选项点击事件
+        document.getElementById('bl-test-uid-check').addEventListener('click', (e) => {
+            e.stopPropagation();
+            showUidCheckDialog();
+            const testMenu = document.getElementById('bl-test-submenu');
+            if (testMenu) {
+                testMenu.style.display = 'none';
+            }
         });
     }
 
