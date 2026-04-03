@@ -166,6 +166,8 @@
     let batchBlockPaused = false;
     /** 批量拉黑完成状态 */
     let batchBlockFinished = false;
+    /** 批量拉黑是否应该停止 */
+    let batchBlockShouldStop = false;
     /** 是否正在刷新数据 */
     let isRefreshing = false;
     /** A盾黑名单上次刷新时间 */
@@ -816,10 +818,19 @@
             clearBlockLog();
 
             for (let i = startIndex; i < total; i++) {
-                // 检查是否暂停
+                // 检查是否暂停或应该停止
                 while (batchBlockPaused) {
+                    if (batchBlockShouldStop) {
+                        console.log('🛑 批量拉黑被终止');
+                        return;
+                    }
                     console.log('⏸️ 批量拉黑已暂停，等待继续...');
                     await delay(1000); // 每秒钟检查一次
+                }
+                // 检查是否应该停止（即使不在暂停状态）
+                if (batchBlockShouldStop) {
+                    console.log('🛑 批量拉黑被终止');
+                    return;
                 }
                 
                 const uid = BLACKLIST_UIDS[i];
@@ -943,6 +954,7 @@
         } finally {
             batchBlockRunning = false;
             batchBlockPaused = false;
+            batchBlockShouldStop = false;
             // 移除操作被阻止弹窗
             const blockedTip = document.getElementById('bilibili-blacklist-blocked-tip');
             if (blockedTip) blockedTip.remove();
@@ -2075,6 +2087,7 @@
             btn.innerHTML = '⌛ 刷新中...';
             btn.disabled = true;
             isRefreshing = true;
+            batchBlockShouldStop = true;
             
             try {
                 console.log('🔄 正在从 listing.ssrv2.ltd API 获取黑名单数据...');
@@ -2123,6 +2136,7 @@
                 }
                 return;
             }
+            batchBlockShouldStop = true;
             const cached = getBlacklistCache();
             
             if (cached && cached.length > 0) {
@@ -2153,6 +2167,7 @@
                 }
                 return;
             }
+            batchBlockShouldStop = true;
             BLACKLIST_UIDS = FALLBACK_UIDS;
             DATA_SOURCE = '备用数据';
             batchBlockFinished = false;
@@ -2194,6 +2209,7 @@
             btn.innerHTML = '⌛ 刷新中...';
             btn.disabled = true;
             isRefreshing = true;
+            batchBlockShouldStop = true;
             
             try {
                 console.log('🔄 正在从 XianLists 获取黑名单数据...');
@@ -2253,6 +2269,7 @@
             btn.innerHTML = '⌛ 刷新中...';
             btn.disabled = true;
             isRefreshing = true;
+            batchBlockShouldStop = true;
             
             try {
                 console.log('🔄 正在从 直播间机器人 获取黑名单数据...');
