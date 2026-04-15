@@ -1596,9 +1596,42 @@
 
             resultDiv.style.cssText = 'margin: 8px 16px 0; padding: 12px; border-radius: 8px; font-size: 13px; line-height: 1.6; background: #f6f7f8; color: #18191c; max-height: 30vh; overflow-y: auto;';
             resultDiv.innerHTML = resultHtml;
+
+            exportBtn.disabled = false;
+            exportBtn.onclick = () => {
+                const lines = [];
+                lines.push(`检查结果`);
+                lines.push(`在黑名单中: ${inBlacklist} 个`);
+                lines.push(`不在黑名单中: ${notInBlacklist} 个`);
+                lines.push(`总计: ${uids.size} 个`);
+                lines.push('');
+                if (inList.length > 0) {
+                    lines.push('=== 在黑名单中的UID ===');
+                    inList.forEach(uid => lines.push(uid));
+                    lines.push('');
+                }
+                if (notInList.length > 0) {
+                    lines.push('=== 不在黑名单中的UID ===');
+                    notInList.forEach(uid => lines.push(uid));
+                }
+                const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'uid_check_result.txt';
+                a.click();
+                URL.revokeObjectURL(url);
+            };
         });
 
+        const exportBtn = document.createElement('button');
+        exportBtn.type = 'button';
+        exportBtn.textContent = '📋 导出结果';
+        exportBtn.disabled = true;
+        exportBtn.style.cssText = 'padding: 8px 12px; background: #f6f7f8; color: #18191c; border: 1px solid #e3e5e7; border-radius: 6px; cursor: pointer; font-size: 13px;';
+
         btnRow.appendChild(pickFileBtn);
+        btnRow.appendChild(exportBtn);
         btnRow.appendChild(cancelBtn);
         btnRow.appendChild(checkBtn);
 
