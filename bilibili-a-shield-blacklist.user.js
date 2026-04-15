@@ -21,12 +21,8 @@
 
     // ==================== 配置 ====================
     const CONFIG = {
-        // 每次批量拉黑的间隔(毫秒)
-        BATCH_INTERVAL: 2000,
-        // 每个用户拉黑的间隔(毫秒)
-        USER_INTERVAL: 500,
-        // 每批处理的用户数
-        BATCH_SIZE: 10,
+        BATCH_INTERVAL: 1000,
+        BATCH_SIZE: 100,
         // 存储键名
         STORAGE_KEY: 'bilibili_blacklist_progress',
         // 黑名单公示页（浏览器打开）
@@ -811,13 +807,11 @@
                 }
             }
             
-            console.log(`🚀 开始批量拉黑，从第 ${startIndex + 1} 个用户开始，共 ${total} 个用户`);
+            console.log(`🚀 开始批量拉黑，从第 ${startIndex + 1} 个用户开始，共 ${total} 个用户，每批 ${CONFIG.BATCH_SIZE} 个并发`);
             
-            // 清空之前的日志记录
             clearBlockLog();
 
-            for (let i = startIndex; i < total; i++) {
-                // 检查是否暂停或应该停止
+            for (let batchStart = startIndex; batchStart < total; batchStart += CONFIG.BATCH_SIZE) {
                 while (batchState.paused) {
                     if (batchState.shouldStop) {
                         console.log('🛑 批量拉黑被终止');
@@ -830,108 +824,60 @@
                     console.log('🛑 批量拉黑被终止');
                     return;
                 }
-                
-                const uid = BLACKLIST_UIDS[i];
-                
-                // 检查是否需要跳过已拉黑的用户
-                if (canSkipAlreadyBlocked && isUserAlreadyBlocked(uid)) {
-                    console.log(`⏭️ 跳过已拉黑用户: ${uid}`);
-                    skippedCount++;
-                    
-                    // 记录跳过日志
-                    addBlockLogEntry({
-                        uid: uid,
-                        status: 'skipped',
-                        message: '用户已在黑名单中',
-                        index: i + 1,
-                        total: total
-                    });
-                    
-                    // 保存进度
-                    saveProgress(i + 1);
-                    // 更新进度显示
-                    updateProgressDisplay();
-                    
-                    // 显示进度通知
-                    if ((i + 1) % CONFIG.BATCH_SIZE === 0 || i === total - 1) {
-                        showNotification(
-                            '批量拉黑进度',
-                            `已处理: ${i + 1}/${total}\n成功: ${success}  失败: ${failed}\n跳过: ${skippedCount}`
-                        );
+
+                const batchEnd = Math.min(batchStart + CONFIG.BATCH_SIZE, total);
+                const batchUids = BLACKLIST_UIDS.slice(batchStart, batchEnd);
+                const batchPromises = batchUids.map((uid, idx) => {
+                    const globalIndex = batchStart + idx + 1;
+
+                    if (canSkipAlreadyBlocked && isUserAlreadyBlocked(uid)) {
+                        return Promise.resolve({
+                            uid, globalIndex, status: 'skipped',
+                            message: '用户已在黑名单中'
+                        });
                     }
-                    continue;
-                }
-                
-                console.log(`[${i + 1}/${total}] 正在处理用户: ${uid}`);
 
-                let blockResult;
-                try {
-                    blockResult = await blockUser(uid);
-                } catch (error) {
-                    blockResult = {
-                        success: false,
-                        message: error.message || '未知错误'
-                    };
-                }
+                    return blockUser(uid).then(blockResult => {
+                        if (blockResult.code === -102) {
+                            myBlacklistUids.add(uid);
+                            return { uid, globalIndex, status: 'skipped', message: blockResult.message };
+                        } else if (blockResult.success) {
+                            myBlacklistUids.add(uid);
+                            return { uid, globalIndex, status: 'success', message: blockResult.message };
+                        } else {
+                            return { uid, globalIndex, status: 'failed', message: blockResult.message };
+                        }
+                    }).catch(error => {
+                        return { uid, globalIndex, status: 'failed', message: error.message || '未知错误' };
+                    });
+                });
 
-                if (blockResult.code === -102) {
-                    skippedCount++;
-                    myBlacklistUids.add(uid);
+                const batchResults = await Promise.all(batchPromises);
 
+                for (const r of batchResults) {
                     addBlockLogEntry({
-                        uid: uid,
-                        status: 'skipped',
-                        message: blockResult.message,
-                        index: i + 1,
+                        uid: r.uid,
+                        status: r.status,
+                        message: r.message,
+                        index: r.globalIndex,
                         total: total
                     });
-                } else if (blockResult.success) {
-                    success++;
-                    // 成功拉黑后添加到本地集合，避免重复处理
-                    myBlacklistUids.add(uid);
-                    
-                    // 记录成功日志
-                    addBlockLogEntry({
-                        uid: uid,
-                        status: 'success',
-                        message: blockResult.message,
-                        index: i + 1,
-                        total: total
-                    });
-                } else {
-                    failed++;
-                    
-                    // 记录失败/错误日志
-                    addBlockLogEntry({
-                        uid: uid,
-                        status: 'failed',
-                        message: blockResult.message,
-                        index: i + 1,
-                        total: total
-                    });
+
+                    if (r.status === 'success') success++;
+                    else if (r.status === 'failed') failed++;
+                    else if (r.status === 'skipped') skippedCount++;
                 }
 
-                // 保存进度
-                saveProgress(i + 1);
-                // 更新进度显示
+                saveProgress(batchEnd);
                 updateProgressDisplay();
 
-                // 显示进度通知
-                if ((i + 1) % CONFIG.BATCH_SIZE === 0 || i === total - 1) {
-                    showNotification(
-                        '批量拉黑进度',
-                        `已处理: ${i + 1}/${total}\n成功: ${success}  失败: ${failed}\n跳过: ${skippedCount}`
-                    );
-                }
+                showNotification(
+                    '批量拉黑进度',
+                    `已处理: ${batchEnd}/${total}\n成功: ${success}  失败: ${failed}\n跳过: ${skippedCount}`
+                );
 
-                // 延迟处理下一个
-                if (i < total - 1) {
-                    await delay(CONFIG.USER_INTERVAL);
-                }
-
-                // 每批处理后额外延迟
-                if ((i + 1) % CONFIG.BATCH_SIZE === 0 && i < total - 1) {
-                    console.log(`⏳ 批次完成，等待 ${CONFIG.BATCH_INTERVAL}ms 后继续...`);
+                if (batchEnd < total) {
+                    console.log(`⏳ 批次完成 (${batchEnd}/${total})，等待 ${CONFIG.BATCH_INTERVAL}ms 后继续...`);
                     await delay(CONFIG.BATCH_INTERVAL);
                 }
             }
@@ -1845,7 +1791,7 @@
                 <div id="bl-progress-display">当前进度: <strong style="color: #00a1d6;">${progress}</strong> / ${total}</div>
                 <div>数据来源: <strong style="color: #18191c;">${DATA_SOURCE}</strong></div>
                 <div>登录状态: <strong style="color: ${isLoggedIn() ? '#00aeec' : '#f25d8e'};">${isLoggedIn() ? '已登录' : '未登录'}</strong>${isLoggedIn() ? ` - ${getCurrentUid()}` : ''}</div>
-                <div>运行状态: <strong id="bl-current-status" style="color: ${batchState.paused ? '#faad14' : batchState.running ? '#52c41a' : batchState.finished ? '#13c2c2' : '#9499a0'};">${batchState.paused ? '已暂停' : batchState.running ? '运行中' : batchState.finished ? '已完成' : '待运行'}</strong></div>>
+                <div>运行状态: <strong id="bl-current-status" style="color: ${batchState.paused ? '#faad14' : batchState.running ? '#52c41a' : batchState.finished ? '#13c2c2' : '#9499a0'};">${batchState.paused ? '已暂停' : batchState.running ? '运行中' : batchState.finished ? '已完成' : '待运行'}</strong></div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 <button id="bl-control-batch" style="padding: 10px; background: #00a1d6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s;">
@@ -2102,6 +2048,7 @@
                 btn.innerHTML = originalText;
                 btn.disabled = false;
                 isRefreshing = false;
+                batchState.shouldStop = false;
                 const menu = document.getElementById('bl-refresh-menu');
                 menu.style.display = 'none';
             }
