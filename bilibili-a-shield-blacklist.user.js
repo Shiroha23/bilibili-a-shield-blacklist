@@ -552,6 +552,7 @@
         <button class="bl-btn bl-btn-ghost" id="bl-btn-secret" style="font-size:12px">👀 只有我知道 ▾</button>
         <div class="bl-dropdown-menu" id="bl-menu-secret">
             <button class="bl-dropdown-item" data-action="github">🔗 GitHub</button>
+            <button class="bl-dropdown-item" data-action="bilibili">📺 bilibili</button>
         </div>
     </div>
 </div>`;
@@ -609,6 +610,7 @@
                     else if (action === 'my-blacklist') window.open('https://account.bilibili.com/account/blacklist', '_blank');
                     else if (action === 'export-my-blacklist') UI.exportMyBilibiliBlacklist();
                     else if (action === 'github') window.open(Config.GITHUB_URL, '_blank');
+                    else if (action === 'bilibili') window.open('https://space.bilibili.com/454023591', '_blank');
                 });
             });
 
@@ -760,7 +762,8 @@
 
             footer.appendChild(pickFileBtn); footer.appendChild(exportBtn); footer.appendChild(checkBtn);
             box.appendChild(header); box.appendChild(body); box.appendChild(footer); overlay.appendChild(box); document.body.appendChild(overlay);
-            ta.focus(); overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+            ta.focus(); overlay.addEventListener('mousedown', e => { if (e.target === overlay) { overlay._blClose = true; } });
+            overlay.addEventListener('mouseup', e => { if (e.target === overlay && overlay._blClose) { overlay.remove(); } overlay._blClose = false; });
         },
 
         showImportUidDialog() {
@@ -796,7 +799,8 @@
 
             footer.appendChild(pickFileBtn); footer.appendChild(okBtn);
             box.appendChild(header); box.appendChild(body); box.appendChild(footer); overlay.appendChild(box); document.body.appendChild(overlay);
-            ta.focus(); overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+            ta.focus(); overlay.addEventListener('mousedown', e => { if (e.target === overlay) { overlay._blClose = true; } });
+            overlay.addEventListener('mouseup', e => { if (e.target === overlay && overlay._blClose) { overlay.remove(); } overlay._blClose = false; });
         }
     };
 
@@ -835,12 +839,15 @@
         console.log(`📋 数据来源: ${BlacklistData.source}，共 ${BlacklistData.uids.length} 条`);
         UI.createFloatingButton();
         if (typeof GM_registerMenuCommand !== 'undefined') {
-            GM_registerMenuCommand('🛡️ 打开B站A盾黑名单拉黑助手', () => { const panel = document.getElementById(Config.PANEL_ID); if (panel) { panel.remove(); UI.createFloatingButton(); } else { const btn = document.getElementById(Config.FLOATING_BTN_ID); if (btn) btn.remove(); UI.createControlPanel(); } });
-            GM_registerMenuCommand('▶️ 开始批量拉黑', () => { if (!Auth.isLoggedIn()) { alert('请先登录B站账号！'); return; } batchBlock(Progress.normalize(Progress.get())); });
-            GM_registerMenuCommand('🔄 重置进度', () => { if (confirm('确定要重置进度吗？')) { Progress.clear(); alert('进度已重置！'); } });
-            GM_registerMenuCommand('📤 导出 UID 列表', () => UI.exportBlacklistUids());
-            GM_registerMenuCommand('📥 导入 UID 列表', () => { if (!BatchState.canStart('导入 UID')) return; UI.showImportUidDialog(); });
-            GM_registerMenuCommand('🧾 导出我的B站黑名单', async () => await UI.exportMyBilibiliBlacklist());
+            GM_registerMenuCommand('🔄 初始化脚本', () => {
+                if (!confirm('确定要初始化脚本吗？这将清除所有本地数据（进度、缓存、免责声明状态）并重新加载页面。')) return;
+                const keys = [Config.STORAGE_KEY, Config.CACHE_KEY, Config.DISCLAIMER_KEY];
+                keys.forEach(k => {
+                    if (typeof GM_setValue !== 'undefined') { try { GM_setValue(k, ''); } catch (_) {} }
+                    try { localStorage.removeItem(k); } catch (_) {}
+                });
+                location.reload();
+            });
         }
     }
 
