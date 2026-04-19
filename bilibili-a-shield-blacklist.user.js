@@ -509,7 +509,7 @@
     <div class="bl-info-card">
         <div class="bl-info-row"><span>登录状态</span><strong style="color:${loggedIn ? 'var(--bl-success)' : 'var(--bl-danger)'}">${loggedIn ? uid : '未登录'}</strong></div>
         <div class="bl-info-row"><span>数据来源</span><strong>${BlacklistData.source}</strong></div>
-        <div class="bl-info-row"><span>黑名单总数</span><strong>${total}</strong></div>
+        <div class="bl-info-row"><span>UID 总数</span><strong>${total}</strong></div>
         <div class="bl-info-row ${statusClass}" id="bl-status-row"><span>运行状态</span><strong><span class="bl-status-dot"></span><span class="bl-status-text">${UI._getStatusText()}</span></strong></div>
     </div>
     <div class="bl-progress-wrap">
