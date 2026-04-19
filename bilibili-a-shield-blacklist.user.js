@@ -534,11 +534,16 @@
         <button class="bl-btn bl-btn-ghost" id="bl-btn-reset">🔄 重置</button>
     </div>
     <div class="bl-dropdown">
-        <button class="bl-btn bl-btn-purple" id="bl-btn-manager">📝 黑名单管理 ▾</button>
-        <div class="bl-dropdown-menu" id="bl-menu-manager">
+        <button class="bl-btn bl-btn-ghost" id="bl-btn-uid-mgr">🔢 UID 管理 ▾</button>
+        <div class="bl-dropdown-menu" id="bl-menu-uid-mgr">
             <button class="bl-dropdown-item" data-action="uid-check">🔍 UID 查重</button>
             <button class="bl-dropdown-item" data-action="import-uids">📥 导入 UID</button>
             <button class="bl-dropdown-item" data-action="export-uids">📤 导出 UID</button>
+        </div>
+    </div>
+    <div class="bl-dropdown" style="margin-top:8px">
+        <button class="bl-btn bl-btn-purple" id="bl-btn-manager">📝 黑名单管理 ▾</button>
+        <div class="bl-dropdown-menu" id="bl-menu-manager">
             <button class="bl-dropdown-item" data-action="my-blacklist">📝 我的B站黑名单</button>
             <button class="bl-dropdown-item" data-action="export-my-blacklist">🧾 导出我的B站黑名单</button>
         </div>
@@ -582,6 +587,7 @@
 
             document.getElementById('bl-btn-refresh').addEventListener('click', e => { e.stopPropagation(); toggleMenu('bl-menu-refresh'); });
             document.getElementById('bl-btn-manager').addEventListener('click', e => { e.stopPropagation(); toggleMenu('bl-menu-manager'); });
+            document.getElementById('bl-btn-uid-mgr').addEventListener('click', e => { e.stopPropagation(); toggleMenu('bl-menu-uid-mgr'); });
             document.getElementById('bl-btn-secret').addEventListener('click', e => { e.stopPropagation(); toggleMenu('bl-menu-secret'); });
             document.addEventListener('click', closeAllMenus);
 
@@ -700,11 +706,7 @@
             filterBar.appendChild(clearBtn);
             renderList();
 
-            const footer = document.createElement('div'); footer.className = 'bl-dialog-footer';
-            const closeBtn = document.createElement('button'); closeBtn.className = 'bl-btn bl-btn-primary'; closeBtn.textContent = '关闭'; closeBtn.style.minWidth = '80px'; closeBtn.addEventListener('click', () => overlay.remove());
-            footer.appendChild(closeBtn);
-
-            box.appendChild(header); box.appendChild(statsLine); box.appendChild(filterBar); box.appendChild(listWrap); box.appendChild(footer);
+            box.appendChild(header); box.appendChild(statsLine); box.appendChild(filterBar); box.appendChild(listWrap);
             overlay.appendChild(box); document.body.appendChild(overlay);
             overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
         },
@@ -731,11 +733,9 @@
             const pickFileBtn = document.createElement('button'); pickFileBtn.className = 'bl-btn bl-btn-ghost'; pickFileBtn.innerHTML = '📄 选择文件';
             const exportBtn = document.createElement('button'); exportBtn.className = 'bl-btn bl-btn-ghost'; exportBtn.textContent = '📋 导出结果'; exportBtn.disabled = true;
             const checkBtn = document.createElement('button'); checkBtn.className = 'bl-btn bl-btn-primary'; checkBtn.textContent = '检查';
-            const cancelBtn = document.createElement('button'); cancelBtn.className = 'bl-btn bl-btn-ghost'; cancelBtn.textContent = '关闭';
 
             pickFileBtn.addEventListener('click', () => fileInput.click());
             fileInput.addEventListener('change', function () { const file = this.files && this.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { ta.value = String(reader.result || ''); }; reader.readAsText(file, 'UTF-8'); });
-            cancelBtn.addEventListener('click', () => overlay.remove());
 
             checkBtn.addEventListener('click', () => {
                 const text = ta.value.trim(); resultDiv.style.display = 'block';
@@ -758,7 +758,7 @@
                 };
             });
 
-            footer.appendChild(pickFileBtn); footer.appendChild(exportBtn); footer.appendChild(cancelBtn); footer.appendChild(checkBtn);
+            footer.appendChild(pickFileBtn); footer.appendChild(exportBtn); footer.appendChild(checkBtn);
             box.appendChild(header); box.appendChild(body); box.appendChild(footer); overlay.appendChild(box); document.body.appendChild(overlay);
             ta.focus(); overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
         },
@@ -781,12 +781,10 @@
 
             const footer = document.createElement('div'); footer.className = 'bl-dialog-footer';
             const pickFileBtn = document.createElement('button'); pickFileBtn.className = 'bl-btn bl-btn-ghost'; pickFileBtn.innerHTML = '📄 选择文件';
-            const cancelBtn = document.createElement('button'); cancelBtn.className = 'bl-btn bl-btn-ghost'; cancelBtn.textContent = '取消';
             const okBtn = document.createElement('button'); okBtn.className = 'bl-btn bl-btn-primary'; okBtn.textContent = '导入';
 
             pickFileBtn.addEventListener('click', () => fileInput.click());
             fileInput.addEventListener('change', function () { const file = this.files && this.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { ta.value = String(reader.result || ''); }; reader.readAsText(file, 'UTF-8'); this.value = ''; });
-            cancelBtn.addEventListener('click', () => overlay.remove());
             okBtn.addEventListener('click', () => {
                 const uids = BlacklistData.parseUidsFromText(ta.value);
                 if (uids.length === 0) { alert('未能解析出任何 UID，请检查格式。'); return; }
@@ -796,7 +794,7 @@
                 Notify.show('导入成功', `已载入 ${uids.length} 条 UID`, 'success');
             });
 
-            footer.appendChild(pickFileBtn); footer.appendChild(cancelBtn); footer.appendChild(okBtn);
+            footer.appendChild(pickFileBtn); footer.appendChild(okBtn);
             box.appendChild(header); box.appendChild(body); box.appendChild(footer); overlay.appendChild(box); document.body.appendChild(overlay);
             ta.focus(); overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
         }
