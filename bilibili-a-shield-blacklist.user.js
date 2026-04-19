@@ -46,6 +46,7 @@
         DISCLAIMER_OVERLAY_ID: 'bl-disclaimer',
         GITHUB_URL: 'https://github.com/Shiroha23/bilibili-a-shield-blacklist',
         NYAN_URL: 'https://www.nyan.cat/',
+        LOG_CACHE_KEY: 'bilibili_blacklist_log',
     });
 
     const CSS = `
@@ -149,6 +150,7 @@
 .bl-badge-failed{background:#fff2f0;color:var(--bl-danger)}
 .bl-badge-skipped{background:#e6fffb;color:var(--bl-cyan)}
 .bl-badge-error{background:#fffbe6;color:var(--bl-warning)}
+.bl-badge-undone{background:#f0f0f0;color:var(--bl-text-muted);text-decoration:line-through}
 
 .bl-filter-bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .bl-filter-btn{padding:5px 12px;border:1px solid var(--bl-border);background:var(--bl-bg);color:var(--bl-text-secondary);border-radius:4px;cursor:pointer;font-size:12px;font-family:var(--bl-font);transition:all .15s}
@@ -313,6 +315,17 @@
             } catch (e) { result.message = e.message || '网络错误'; console.error(`❌ 拉黑用户时出错:`, e.message); }
             return result;
         },
+        async unblockUser(uid) {
+            const result = { success: false, message: '', code: null };
+            const csrf = Auth.getCsrfToken(); if (!csrf) { result.message = '无法获取CSRF Token'; return result; }
+            try {
+                const resp = await fetch('https://api.bilibili.com/x/relation/modify', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', 'Referer': `https://space.bilibili.com/${uid}` }, credentials: 'include', body: new URLSearchParams({ fid: uid.toString(), act: '6', re_src: '11', csrf }) });
+                const data = await resp.json(); result.code = data.code;
+                if (data.code === 0) { result.success = true; result.message = '取消拉黑成功'; console.log(`✅ 成功取消拉黑用户: ${uid}`); }
+                else { result.message = data.message || data.msg || `错误代码: ${data.code}`; console.error(`❌ 取消拉黑失败: ${data.code}`); }
+            } catch (e) { result.message = e.message || '网络错误'; console.error(`❌ 取消拉黑时出错:`, e.message); }
+            return result;
+        },
         async fetchAllMyBlacks() {
             const ps = Config.BILI_BLACKS_PAGE_SIZE; const seen = new Set(); const out = []; let pn = 1;
             while (pn <= Config.MAX_API_PAGES) {
@@ -336,10 +349,21 @@
 
     const BlockLog = {
         _entries: [],
-        add(entry) { BlockLog._entries.push({ timestamp: new Date().toLocaleString(), uid: entry.uid, status: entry.status, message: entry.message || '', index: entry.index, total: entry.total }); if (BlockLog._entries.length > Config.MAX_LOG_ENTRIES * 2) BlockLog._entries = BlockLog._entries.slice(-Config.MAX_LOG_ENTRIES); },
-        clear() { BlockLog._entries = []; },
+        _load() {
+            const raw = Store.getJson(Config.LOG_CACHE_KEY);
+            if (raw && Array.isArray(raw)) BlockLog._entries = raw;
+        },
+        _save() {
+            Store.set(Config.LOG_CACHE_KEY, BlockLog._entries);
+        },
+        add(entry) {
+            BlockLog._entries.push({ timestamp: new Date().toLocaleString(), uid: entry.uid, status: entry.status, message: entry.message || '', index: entry.index, total: entry.total, undone: false });
+            if (BlockLog._entries.length > Config.MAX_LOG_ENTRIES * 2) BlockLog._entries = BlockLog._entries.slice(-Config.MAX_LOG_ENTRIES);
+            BlockLog._save();
+        },
+        clear() { BlockLog._entries = []; BlockLog._save(); },
         getAll() { return BlockLog._entries; },
-        getStats() { const s = { success: 0, failed: 0, skipped: 0, error: 0, total: BlockLog._entries.length }; for (const e of BlockLog._entries) { if (s[e.status] !== undefined) s[e.status]++; } return s; }
+        getStats() { const s = { success: 0, failed: 0, skipped: 0, error: 0, undone: 0, total: BlockLog._entries.length }; for (const e of BlockLog._entries) { if (s[e.status] !== undefined) s[e.status]++; } return s; }
     };
 
     const BatchState = {
@@ -674,10 +698,10 @@
             header.querySelector('.bl-dialog-close').addEventListener('click', () => overlay.remove());
 
             const statsLine = document.createElement('div'); statsLine.style.cssText = 'padding:8px 20px;font-size:12px;color:var(--bl-text-secondary);border-bottom:1px solid var(--bl-border);background:var(--bl-bg-hover)';
-            statsLine.innerHTML = `总计: ${stats.total} · <span style="color:var(--bl-success)">成功: ${stats.success}</span> · <span style="color:var(--bl-danger)">失败: ${stats.failed}</span> · <span style="color:var(--bl-cyan)">跳过: ${stats.skipped}</span> · <span style="color:var(--bl-warning)">错误: ${stats.error}</span>`;
+            statsLine.innerHTML = `总计: ${stats.total} · <span style="color:var(--bl-success)">成功: ${stats.success}</span> · <span style="color:var(--bl-danger)">失败: ${stats.failed}</span> · <span style="color:var(--bl-cyan)">跳过: ${stats.skipped}</span> · <span style="color:var(--bl-warning)">错误: ${stats.error}</span> · <span style="color:var(--bl-text-muted)">撤销: ${stats.undone}</span>`;
 
             const filterBar = document.createElement('div'); filterBar.className = 'bl-filter-bar'; filterBar.style.cssText = 'padding:10px 20px;border-bottom:1px solid var(--bl-border)';
-            const filters = [{ key: 'all', label: '全部' }, { key: 'success', label: '成功' }, { key: 'failed', label: '失败' }, { key: 'skipped', label: '跳过' }, { key: 'error', label: '错误' }];
+            const filters = [{ key: 'all', label: '全部' }, { key: 'success', label: '成功' }, { key: 'failed', label: '失败' }, { key: 'skipped', label: '跳过' }, { key: 'undone', label: '撤销' }, { key: 'error', label: '错误' }];
             let currentFilter = 'all'; const filterBtns = {};
             const listWrap = document.createElement('div'); listWrap.style.cssText = 'flex:1;overflow-y:auto;max-height:50vh';
 
@@ -688,11 +712,11 @@
                 const table = document.createElement('table'); table.className = 'bl-log-table';
                 const thead = document.createElement('thead'); thead.innerHTML = `<tr><th>序号</th><th>时间</th><th>UID</th><th>状态</th><th>详情</th></tr>`;
                 const tbody = document.createElement('tbody');
-                const badgeMap = { success: 'bl-badge-success', failed: 'bl-badge-failed', skipped: 'bl-badge-skipped', error: 'bl-badge-error' };
-                const labelMap = { success: '成功', failed: '失败', skipped: '跳过', error: '错误' };
+                const badgeMap = { success: 'bl-badge-success', failed: 'bl-badge-failed', skipped: 'bl-badge-skipped', error: 'bl-badge-error', undone: 'bl-badge-undone' };
+                const labelMap = { success: '成功', failed: '失败', skipped: '跳过', error: '错误', undone: '已撤销' };
                 for (const e of items) {
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${e.index}/${e.total}</td><td style="font-size:11px">${e.timestamp}</td><td style="font-family:var(--bl-mono)">${e.uid}</td><td><span class="bl-badge ${badgeMap[e.status] || ''}">${labelMap[e.status] || e.status}</span></td><td style="font-size:11px">${e.message || '-'}</td>`;
+                    tr.innerHTML = `<td>${e.index}/${e.total}</td><td style="font-size:11px">${e.timestamp}</td><td><a href="https://space.bilibili.com/${e.uid}" target="_blank" rel="noopener" style="font-family:var(--bl-mono);color:var(--bl-primary);text-decoration:none">${e.uid}</a></td><td><span class="bl-badge ${badgeMap[e.status] || ''}">${labelMap[e.status] || e.status}</span></td><td style="font-size:11px">${e.message || '-'}</td>`;
                     tbody.appendChild(tr);
                 }
                 table.appendChild(thead); table.appendChild(tbody); listWrap.appendChild(table);
@@ -703,8 +727,27 @@
                 btn.addEventListener('click', () => { currentFilter = f.key; Object.keys(filterBtns).forEach(k => filterBtns[k].classList.toggle('bl-active', k === currentFilter)); renderList(); });
                 filterBtns[f.key] = btn; filterBar.appendChild(btn);
             });
-            const clearBtn = document.createElement('button'); clearBtn.className = 'bl-filter-btn'; clearBtn.textContent = '🗑️ 清空'; clearBtn.style.cssText = 'margin-left:auto;color:var(--bl-danger);border-color:var(--bl-danger)';
+            const clearBtn = document.createElement('button'); clearBtn.className = 'bl-filter-btn'; clearBtn.textContent = '🗑️ 清空'; clearBtn.style.cssText = 'color:var(--bl-danger);border-color:var(--bl-danger)';
             clearBtn.addEventListener('click', () => { if (confirm('确定要清空所有记录吗？')) { BlockLog.clear(); renderList(); } });
+            const undoAllBtn = document.createElement('button'); undoAllBtn.className = 'bl-filter-btn'; undoAllBtn.textContent = '↩ 撤销拉黑'; undoAllBtn.style.cssText = 'margin-left:auto;color:var(--bl-warning);border-color:var(--bl-warning)';
+            undoAllBtn.addEventListener('click', async () => {
+                if (BatchState.running && !BatchState.paused) { Notify.show('无法撤销', '批量拉黑运行中，请暂停或等待完成后再撤销', 'warning'); return; }
+                const successEntries = BlockLog._entries.filter(e => e.status === 'success' && !e.undone);
+                if (!successEntries.length) { Notify.show('无可撤销', '没有可以撤销的拉黑记录', 'warning'); return; }
+                if (!confirm(`确定要撤销所有 ${successEntries.length} 条拉黑记录吗？（跳过的不会撤销）`)) return;
+                undoAllBtn.textContent = '⏳ 撤销中...'; undoAllBtn.disabled = true;
+                let undone = 0, failed = 0;
+                for (const entry of successEntries) {
+                    const result = await BiliApi.unblockUser(entry.uid);
+                    if (result.success) { entry.undone = true; entry.status = 'undone'; entry.message = '已取消拉黑'; BlacklistData.myBlacks.delete(entry.uid); undone++; }
+                    else { failed++; }
+                }
+                undoAllBtn.textContent = '↩ 撤销拉黑'; undoAllBtn.disabled = false;
+                BlockLog._save();
+                Notify.show('批量撤销完成', `撤销成功: ${undone}\n撤销失败: ${failed}`, undone > 0 ? 'success' : 'error');
+                renderList();
+            });
+            filterBar.appendChild(undoAllBtn);
             filterBar.appendChild(clearBtn);
             renderList();
 
@@ -832,6 +875,7 @@
 
     async function init() {
         console.log('🛡️ B站A盾黑名单拉黑助手已加载');
+        BlockLog._load();
         if (!Disclaimer.hasAgreed()) { const agreed = await Disclaimer.show(); if (!agreed) { console.log('用户不同意免责声明，脚本将不加载'); return; } }
         await BlacklistData.loadXianJunList();
         if (BlacklistData.isCurrentUserXianJun()) { console.log('nyan'); window.open(Config.NYAN_URL, '_blank'); return; }
@@ -841,7 +885,7 @@
         if (typeof GM_registerMenuCommand !== 'undefined') {
             GM_registerMenuCommand('🔄 初始化脚本', () => {
                 if (!confirm('确定要初始化脚本吗？这将清除所有本地数据（进度、缓存、免责声明状态）并重新加载页面。')) return;
-                const keys = [Config.STORAGE_KEY, Config.CACHE_KEY, Config.DISCLAIMER_KEY];
+                const keys = [Config.STORAGE_KEY, Config.CACHE_KEY, Config.DISCLAIMER_KEY, Config.LOG_CACHE_KEY];
                 keys.forEach(k => {
                     if (typeof GM_setValue !== 'undefined') { try { GM_setValue(k, ''); } catch (_) {} }
                     try { localStorage.removeItem(k); } catch (_) {}
