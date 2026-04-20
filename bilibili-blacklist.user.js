@@ -781,6 +781,8 @@
 
             function renderList() {
                 listWrap.innerHTML = '';
+                const currentStats = BlockLog.getStats();
+                statsLine.innerHTML = `总计: ${currentStats.total} · <span style="color:var(--bl-success)">成功: ${currentStats.success}</span> · <span style="color:var(--bl-danger)">失败: ${currentStats.failed}</span> · <span style="color:var(--bl-cyan)">跳过: ${currentStats.skipped}</span> · <span style="color:var(--bl-warning)">错误: ${currentStats.error}</span> · <span style="color:var(--bl-text-muted)">撤销: ${currentStats.undone}</span>`;
                 const items = (currentFilter === 'all' ? [...BlockLog.getAll()] : BlockLog.getAll().filter(e => e.status === currentFilter)).reverse();
                 if (!items.length) { listWrap.innerHTML = '<div style="text-align:center;padding:40px;color:var(--bl-text-muted);font-size:14px">暂无记录</div>'; return; }
                 const table = document.createElement('table'); table.className = 'bl-log-table';
