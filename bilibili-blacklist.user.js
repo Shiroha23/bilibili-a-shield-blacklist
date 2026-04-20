@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         B站A盾黑名单拉黑助手
+// @name         bilibili-blacklist
 // @namespace    http://tampermonkey.net/
 // @version      2.0
-// @description  自动将A盾黑名单中的用户添加到B站黑名单，支持从 listing.ssrv2.ltd 动态获取数据
+// @description  自动将数据中的用户添加到B站黑名单，支持动态获取数据
 // @author       Shiroha23
 // @match        https://www.bilibili.com/*
 // @grant        GM_xmlhttpRequest
@@ -526,7 +526,7 @@
 
             panel.innerHTML = `
 <div class="bl-panel-header">
-    <h3>🛡️ A盾黑名单助手</h3>
+    <h3>🛡️ bilibili-blacklist</h3>
     <button class="bl-panel-close" id="bl-btn-close">×</button>
 </div>
 <div class="bl-panel-body">
