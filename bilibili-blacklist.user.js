@@ -307,7 +307,7 @@
             function add(uid) { if (typeof uid === 'number' && Number.isFinite(uid) && uid > 0 && !seen.has(uid)) { seen.add(uid); out.push(uid); } }
             const linkRe = /space\.bilibili\.com\/(\d+)/gi; let m;
             while ((m = linkRe.exec(text)) !== null) add(parseInt(m[1], 10));
-            for (const part of text.split(/[\n,;，；\r\t]+/)) { let p = part.trim(); if (!p) continue; p = p.replace(/^UID[:\s：]*/i, '').trim(); const digits = p.match(/^(\d{5,})$/); if (digits) add(parseInt(digits[1], 10)); }
+            for (const part of text.split(/[\n,;，；\r\t]+/)) { let p = part.trim(); if (!p) continue; p = p.replace(/^UID[:\s：]*/i, '').trim(); const digits = p.match(/^(\d+)$/); if (digits) add(parseInt(digits[1], 10)); }
             return out;
         },
         applyImported(uids) { BlacklistData.setUids(uids, '用户导入'); BlacklistData.saveCache(); Progress.clear(); }
