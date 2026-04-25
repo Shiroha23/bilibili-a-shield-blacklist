@@ -380,6 +380,28 @@
                 return null;
             }
         },
+        async loadAdList() {
+            try {
+                const text = await Http.fetchText('https://raw.githubusercontent.com/Shiroha23/bilibili-blacklist/main/blacklist/ad/ad.txt');
+                const uids = [];
+                const seen = new Set();
+                for (const line of text.split('\n')) {
+                    let trimmed = line.trim();
+                    if (!trimmed || trimmed.startsWith('#')) continue;
+                    trimmed = trimmed.replace(/^UID[:\s：]*/i, '').trim();
+                    const uid = parseInt(trimmed, 10);
+                    if (!isNaN(uid) && uid > 0 && !seen.has(uid)) {
+                        seen.add(uid);
+                        uids.push(uid);
+                    }
+                }
+                console.log(`✅ AD列表加载完成，共 ${uids.length} 条`);
+                return { uids, source: 'AD' };
+            } catch (e) {
+                console.warn('⚠️ 加载AD列表失败:', e);
+                return null;
+            }
+        },
         async fetchRemote() {
             try {
                 console.log('🔄 正在从 listing.ssrv2.ltd API 获取黑名单数据...');
@@ -1062,6 +1084,7 @@
             <button class="bl-dropdown-item" data-action="refresh-remote">🛡️ A盾黑名单</button>
             <button class="bl-dropdown-item" data-action="refresh-xianlists">👹 XianLists</button>
             <button class="bl-dropdown-item" data-action="refresh-live-robot">🤖 直播间机器人</button>
+            <button class="bl-dropdown-item" data-action="refresh-ad">📢 AD</button>
             <button class="bl-dropdown-item" data-action="refresh-wc">💩 WC</button>
             <button class="bl-dropdown-item" data-action="refresh-cache">💾 本地缓存</button>
         </div>
@@ -1174,6 +1197,7 @@
                     if (action === 'refresh-remote') UI._handleRefresh(async () => { let result = await BlacklistData.fetchFromPublicApi(); let src = 'A盾黑名单 (主源)'; if (!result || (Array.isArray(result) && result.length === 0)) { result = await BlacklistData.loadBackupAShield(); src = (result && result.source) ? result.source : 'A盾黑名单 (备用源)'; } const uids = Array.isArray(result) ? result : (result && result.uids); return { uids, source: src }; }, 'A盾黑名单');
                     else if (action === 'refresh-xianlists') UI._handleRefresh(BlacklistData.loadXianJunList, 'XianLists');
                     else if (action === 'refresh-live-robot') UI._handleRefresh(BlacklistData.loadLiveRoomRobotList, '直播间机器人');
+                    else if (action === 'refresh-ad') UI._handleRefresh(BlacklistData.loadAdList, 'AD');
                     else if (action === 'refresh-wc') UI._handleRefresh(BlacklistData.loadWcList, 'WC');
                     else if (action === 'refresh-cache') {
                         const cached = Store.getJson(Config.CACHE_KEY);
@@ -1225,7 +1249,7 @@
                     UI.createControlPanel();
                     Notify.show('数据刷新', `✅ 成功从 ${actualSource} 获取\n${uids.length} 条数据`, 'success');
                 } else {
-                    throw new Error('未找到UID数据');
+                    Notify.show('数据为空', `${actualSource} 暂无数据`, 'warning');
                 }
             } catch (e) {
                 console.warn(`⚠️ 从${sourceLabel}获取黑名单失败:`, e);
